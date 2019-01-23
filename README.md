@@ -38,42 +38,42 @@ Note that the following folder tree is for the Net-Zero Toolkit project code onl
 
 ```
 Net-Zero Toolkit model overview
-    ├──	Makefile							   <- Makefile with commands (TBC)
-    ├──	README.md							  <- Top-level README whic provides a summary of the tool and software requirements
-    ├──	Model_data_update.Rproj				<- Model data update project file
-    ├──	Model_data_update.R					<- Script for updating 'Models' folder with results from latest 'Data_cleaning' code
-    ├──	Issues_log.xlsx						<- Summary of outstanding NZT model and data cleaning issues
-    ├──	Model_data_update.R					<- Script for updating 'Models' folder with results from latest 'Data_cleaning' code
+    ├──	Makefile                                    <- Makefile with commands (TBC)
+    ├──	README.md                                   <- Top-level README whic provides a summary of the tool and software requirements
+    ├──	Model_data_update.Rproj                     <- Model data update project file
+    ├──	Model_data_update.R                         <- Script for updating 'Models' folder with results from latest 'Data_cleaning' code
+    ├──	Issues_log.xlsx                             <- Summary of outstanding NZT model and data cleaning issues
+    ├──	Model_data_update.R                         <- Script for updating 'Models' folder with results from latest 'Data_cleaning' code
     ├──	Data_cleaning
-    │	  └──	TBC (including unit tests for data cleaning)
+    │	  └──	TBC                                 <- (including unit tests for data cleaning)
     |
     ├── Models
-    ├──	Models.Rproj						   <- Models project file
-    |	  ├──	1 - Demand destruction		  <- Demand destruction model implementation
-    |			 ├── 	Upstream_oilandgas.R	<- Oil & gas upstream (E&P) sector
-    |			 ├── 	Upstream_coal.R		 <- Coal upstream sector
-    |			 ├── 	Downstream_and_svcs.R   <- Oil & gas midstream and downstream sector
-    |			 ├── 	ICE_vehicles.R		  <- ICE vehicle sector
-    |			 └── 	Diagnostics.R		   <- Debugging
+    ├──	Models.Rproj                                <- Models project file
+|	  ├──	1 - Demand destruction                  <- Demand destruction model implementation
+    |			 ├── 	Upstream_oilandgas.R        <- Oil & gas upstream (E&P) sector
+    |			 ├── 	Upstream_coal.R             <- Coal upstream sector
+    |			 ├── 	Downstream_and_svcs.R       <- Oil & gas midstream and downstream sector
+    |			 ├── 	ICE_vehicles.R              <- ICE vehicle sector
+    |			 └── 	Diagnostics.R               <- Debugging
     |
-    |	  ├──	2 - Cleantech markets		   <- Cleantech markets model implementation
-    |			 ├── 	Cleantech_markets.R	 <- Cleantech markets
-    |			 └── 	Diagnostics.R		   <- Debugging
+    |	  ├──	2 - Cleantech markets               <- Cleantech markets model implementation
+    |			 ├── 	Cleantech_markets.R         <- Cleantech markets
+    |			 └── 	Diagnostics.R               <- Debugging
     |
-    |	  ├──	3 - Cost and competition		<- Cost & competition model implementation
-    |			 ├── 	Cost_and_competition.R  <- Cost & competition
-    |			 └── 	Diagnostics.R		   <- Debugging
+    |	  ├──	3 - Cost and competition            <- Cost & competition model implementation
+    |			 ├── 	Cost_and_competition.R      <- Cost & competition
+    |			 └── 	Diagnostics.R               <- Debugging
     |
-    |	  ├──	4 - Asset impacts			   <- Overlay of company-level impacts to financial assets
-    |			 ├── 	TBC.R			  	 <- TBC
-    |			 └── 	Diagnostics.R		   <- Debugging
+    |	  ├──	4 - Asset impacts                   <- Overlay of company-level impacts to financial assets
+    |			 ├── 	TBC.R                       <- TBC
+    |			 └── 	Diagnostics.R               <- Debugging
     |
-    |	  └──	5 - Unit tests				  <- Testing of model implementation
-    |			 ├── 	TBC.R			  	 <- TBC
-    |			 └── 	Diagnostics.R		   <- Debugging
+    |	  └──	5 - Unit tests                      <- Testing of model implementation
+    |			 ├── 	TBC.R                       <- TBC
+    |			 └── 	Diagnostics.R               <- Debugging
 
 All model and data cleaning folders have the following subfolder structure
-    ├──	Input								  <- Raw input data (csv files in Data cleaning, rds files written by Model_data_update.R in Models)
-    ├──	Interim								<- Interim data outputs (useful for debugging)
-    ├──	Output								 <- Final data outputs (used in later modelling or for results processing)
+    ├──	Input                                       <- Raw input data (csv files in Data cleaning, rds files written by Model_data_update.R in Models)
+    ├──	Interim                                     <- Interim data outputs (useful for debugging)
+    ├──	Output                                      <- Final data outputs (used in later modelling or for results processing)
 ```
