@@ -49,7 +49,7 @@ Net-Zero Toolkit model overview
     |
     ├── Models
     ├──	Models.Rproj                                <- Models project file
-|	  ├──	1 - Demand destruction                  <- Demand destruction model implementation
+    ├──	1 - Demand destruction                      <- Demand destruction model implementation
     |			 ├── 	Upstream_oilandgas.R        <- Oil & gas upstream (E&P) sector
     |			 ├── 	Upstream_coal.R             <- Coal upstream sector
     |			 ├── 	Downstream_and_svcs.R       <- Oil & gas midstream and downstream sector
