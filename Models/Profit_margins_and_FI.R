@@ -5,7 +5,7 @@ library(readxl)
 panel_data <- readRDS("C:/Users/Shyamal/Vivid Economics Ltd/171211HSB - Low Carbon Portfolio - Documents/6 - analysis/Models/3 - Cost and competition/Input/Model_panel.rds")
 credit_data <- read_excel("C:/Users/Shyamal/Vivid Economics Ltd/171211HSB - Low Carbon Portfolio - Documents/5 - data/Raw data from HSBC/Thomson Reuters financial/180830 TR data/Additional credit data 300818.xlsx",
                           sheet = "2017", range = "$B$1:$AR$2781")
-us_inflation_data <- read_excel("C:/Users/Shyamal/Vivid Economics Ltd/171211HSB - Low Carbon Portfolio - Documents/6 - analysis/Data cleaning/1 - Financial prelim/Input/OECD CPI inflation.xlsx",
+us_inflation_data <- read_excel("C:/Users/Shyamal/Vivid Economics Ltd/171211HSB - Low Carbon Portfolio - Documents/6 - analysis/Data_cleaning/1 - Financial prelim/Input/OECD CPI inflation.xlsx",
                                 sheet = "R1. OECD CPI inflation", range = "$A$9:$G$4408")
 
 parameter_data <- tibble(discount_rate = 0.0575)
@@ -52,7 +52,7 @@ profit_margin_data <- panel_data %>%
            net_income_2017 / revenue_2017 ) %>%
   mutate(mcap_margin_2017 = ifelse(revenue_2017 - net_income_2017 / (1 - corporation_tax_rate) >= 0, 1 / (1 - corporation_tax_rate), 1) *
            market_cap_2017 * (parameter_data$discount_rate / (1 + parameter_data$discount_rate)) * 1000 / revenue_2017) %>%
-  group_by(scenario, ISIN_code, company) %>%
+  group_by(scenario, ISIN_code, company, parent_market) %>%
   summarise(market_cap_2017 = sum(market_cap_2017),
             revenue_2017 = sum(revenue_2017 / 10^3),
             net_income_margin_2017 = mean(net_income_margin_2017, na.rm = TRUE),
@@ -82,7 +82,7 @@ liabilities_data <- credit_data %>%
 
 profit_margin_data2 <- profit_margin_data %>%
   left_join(liabilities_data) %>%
-  select(ISIN_code, company, market_cap_2017, total_liabilities, revenue_2017, net_income_margin_2017, mcap_margin_2017) %>%
+  select(ISIN_code, company, parent_market, market_cap_2017, total_liabilities, revenue_2017, net_income_margin_2017, mcap_margin_2017) %>%
   rename_at(.vars = vars(ends_with("_2017")),
             .funs = funs(str_replace(., "_2017", ""))) %>%
   mutate(debt_ratio = total_liabilities / (market_cap + total_liabilities))
