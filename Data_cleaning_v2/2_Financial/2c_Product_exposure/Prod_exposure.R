@@ -1,12 +1,12 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  29/01/2019
+##### Date of last edit:  30/01/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TR financial data from Excel, and cleans the data before
 #####                     further data cleaning takes place
-##### Dependencies:       1.  Latest Thomson Reuters cleaned dataset: "1 - Financial prelim/Output/TR_cleaned_2016USD_data.rds"
-#####                     2.  Latest list of oil and gas analysis companies: "4 - Fossil fuels/Oil and gas/Output/DD analysis companies list.rds"
-#####                     3.  Ethan's product-market matching exercise results: "6 - Financial prod/Input/Market product classification_EM.xlsx",
-#####                     4.  Aaron's company-product-market matching exercise results: "6 - Financial prd/Input/Company product classificaiton_AT.xlsx"
+##### Dependencies:       1.  Latest Thomson Reuters cleaned dataset: "2_Financial/2a_Preliminary/Output/Companies_2016USD_data.rds"
+#####                     2.  Latest list of oil and gas analysis companies: "Rystad_oil_and_gas.xlsx"
+#####                     3.  Ethan's product-market matching exercise results: "Market_product_classification_EM.xlsx",
+#####                     4.  Aaron's company-product-market matching exercise results: "Company_product_classificaiton_AT.xlsx"
 #####                         Older files can be found in the ".../Dated/" folder
 
 #--------------------------------------------------------------------------------------------------
@@ -17,8 +17,11 @@
 main_save_folder <- "2_Financial/2c_Product_exposure"
 source("utils.R")
 
-# Read in Thomson Reuters cleaned dataset (2016US$)
+# Read in cleaned company-level dataset (2016US$)
 company_data <- readRDS("2_Financial/2a_Preliminary/Output/Companies_2016USD_data.rds")
+
+# Read in cleaned company list including isin codes
+company_list <- readRDS("2_Financial/2a_Preliminary/Output/Companies_list.rds")
 
 ## Read in market-product allocation exercise findings
 
@@ -35,13 +38,14 @@ product_market_allocation_2 <- read_excel(input_source("Company_product_classifi
 oil_and_gas_data <- read_excel(input_source("Rystad_oil_and_gas.xlsx"),
                                                  sheet = "Clean lookup table", range = "$A$3:$E$150")
 
-
 #--------------------------------------------------------------------------------------------------
 
 ##### SECTION 2 - Preliminary cleaning and removing unrequired variables from each dataset
 
 company_data2 <- company_data %>%
-  select(company_id:corporation_tax_rate, revenue_2017, revenue_2016, contains("product_"))
+  select(company_id:corporation_tax_rate, revenue_2017, revenue_2016, contains("product_")) %>%
+  left_join(company_list, by = c("company_id", "company")) %>%
+  select(company_id, starts_with("equity_isin_code_"), everything())
 
 # Create merge indicators for oil & gas dataset (ISINs included in Rystad dataset, rather than unique company ids)@
 oil_and_gas_data2 <- oil_and_gas_data %>%
@@ -53,11 +57,9 @@ oil_and_gas_data2 <- oil_and_gas_data %>%
   filter(!(company %in% c("CABOT OIL & GAS 'A'", "GENTING")))
 
 company_data3 <- company_data2 %>%
-  mutate(list_isin_code = company_id) %>%
-  separate(list_isin_code, into = c("isin_code_1", "isin_code_2", "isin_code_3"), sep = " ") %>%
-  mutate(oil_merge_isin_code = case_when(isin_code_1 %in% oil_and_gas_data2$oil_merge_isin_code ~ isin_code_1,
-                                         isin_code_2 %in% oil_and_gas_data2$oil_merge_isin_code ~ isin_code_2,
-                                         isin_code_3 %in% oil_and_gas_data2$oil_merge_isin_code ~ isin_code_3,
+  mutate(oil_merge_isin_code = case_when(equity_isin_code_1 %in% oil_and_gas_data2$oil_merge_isin_code ~ equity_isin_code_1,
+                                         equity_isin_code_2 %in% oil_and_gas_data2$oil_merge_isin_code ~ equity_isin_code_2,
+                                         equity_isin_code_3 %in% oil_and_gas_data2$oil_merge_isin_code ~ equity_isin_code_3,
                                          TRUE ~ NA_character_))
 
 # Generate market definitions based on existing definitions
@@ -93,7 +95,7 @@ company_prod_data2$temp <- sapply(company_prod_data2$temp, function(temp) temp[2
 company_prod_data3 <- company_prod_data2 %>%
   mutate(category_meta = substr(category, start = 1, stop = temp - 1)) %>%
   select(company_id:market, starts_with("revenue"), market, category_meta, category, year, product, market_new,
-         isin_code_1, isin_code_2, isin_code_3) %>% # Drop comments (from Ethan) and temporary variables
+         equity_isin_code_1, equity_isin_code_2, equity_isin_code_3) %>% # Drop comments (from Ethan) and temporary variables
   mutate(category_no = stri_extract_first_regex(category, "[0-9]+")) %>%
   select(-category)
 
@@ -118,7 +120,7 @@ prod_rev_data <- company_prod_data3 %>%
 # Product category name data
 prod_name_data <- company_prod_data3 %>%
   select(company_id:market, category_meta, year, product, market_new, category_no,
-         isin_code_1, isin_code_2, isin_code_3) %>%
+         equity_isin_code_1, equity_isin_code_2, equity_isin_code_3) %>%
   filter(category_meta == "product_name") %>%
   select(-category_meta) %>%
   select(company_id:market, year, category_no, everything()) %>%
@@ -128,7 +130,7 @@ prod_name_data <- company_prod_data3 %>%
 company_prod_data4 <- prod_name_data %<>%
   left_join(prod_rev_data, by = c("company_id", "year", "category_no")) %>%
   select(company_id, company, starts_with("industry"), market, year, category_no, product_name, product_sales,
-         market_new, isin_code_1, isin_code_2, isin_code_3) %>%
+         market_new, equity_isin_code_1, equity_isin_code_2, equity_isin_code_3) %>%
   left_join(company_rev_data, by = c("company_id", "year")) %>%
   select(company_id:market, year, revenue, everything())
 
@@ -143,9 +145,9 @@ product_market_allocation_2_2 <- product_market_allocation_2 %>%
   
 # Create merge indicator in company product exposure dataset
 company_prod_data5 <- company_prod_data4 %>%
-  mutate(product_merge_isin_code = case_when(isin_code_1 %in% product_market_allocation_2_2$product_merge_isin_code ~ isin_code_1,
-                                             isin_code_2 %in% product_market_allocation_2_2$product_merge_isin_code ~ isin_code_2,
-                                             isin_code_3 %in% product_market_allocation_2_2$product_merge_isin_code ~ isin_code_3,
+  mutate(product_merge_isin_code = case_when(equity_isin_code_1 %in% product_market_allocation_2_2$product_merge_isin_code ~ equity_isin_code_1,
+                                             equity_isin_code_2 %in% product_market_allocation_2_2$product_merge_isin_code ~ equity_isin_code_2,
+                                             equity_isin_code_3 %in% product_market_allocation_2_2$product_merge_isin_code ~ equity_isin_code_3,
                                              TRUE ~ NA_character_))
 
 # Remove financial dataset variables which are no longer required
@@ -159,7 +161,7 @@ company_prod_data6 <- company_prod_data5 %>%
                                 !is.na(market_new.y) ~ market_new.y,
                                 TRUE ~ NA_character_)) %>%
   select(-market_new.x , -market_new.y, -product_merge_isin_code,
-         -isin_code_1, -isin_code_2, -isin_code_3) %>%
+         -equity_isin_code_1, -equity_isin_code_2, -equity_isin_code_3) %>%
   rename(parent_market = market,
          market = market_new)
 

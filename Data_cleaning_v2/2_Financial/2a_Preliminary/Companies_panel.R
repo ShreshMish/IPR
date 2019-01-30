@@ -123,3 +123,11 @@ company_data2 <- company_data %>%
          starts_with("product_revenue_"))
 
 save_dated(company_data2, "Companies_2016USD_data", folder = "Output", csv = TRUE)
+
+# Save unique company codes, names and associated ISIN codes list for later use
+company_list <- company_data2 %>% 
+  select(company_id, company) %>%
+  separate(company_id, into = c("equity_isin_code_1", "equity_isin_code_2", "equity_isin_code_3"),
+           sep = " ", fill = "right", remove = FALSE)
+
+save_dated(company_list, "Companies_list", folder = "Output", csv = TRUE)

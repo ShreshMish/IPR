@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/01/2019
+##### Date of last edit:  30/01/2019
 ##### Code author:        Shyamal Patel / Mark Westcott
 ##### Description:        This script sets out useful functions and file paths called by other scripts within the data cleaning folder
 ##### Dependencies:       N/A
@@ -90,13 +90,19 @@ input_source <- function(filename) {
 ##### SECTION 2 - Debugging functions
 
 # These functions count the number of missing, zero, negative or unique value observations in a dataframe
-na_counter <- function(x) {sum(is.na(x))}
-zero_counter <- function(x) {sum(ifelse(x == 0, 1, 0))}
-negative_counter <- function(x) {sum(ifelse(x < 0, 1,0))}
-unique_counter <- function(x) {length(unique(x))}
+na_counter <- function(variable) {sum(is.na(variable))}
+zero_counter <- function(variable) {sum(ifelse(variable == 0, 1, 0), na.rm = TRUE)}
+negative_counter <- function(variable) {sum(ifelse(variable < 0, 1,0), na.rm = TRUE)}
+unique_counter <- function(variable) {length(unique(variable))}
 
 # Custom view function (glimpse + View)
-view <- function(x) {
-  View(x)
-  glimpse(x)
+view <- function(tibble) {
+  View(tibble, title = deparse(substitute(tibble)))
+  glimpse(tibble)
+}
+
+# Find common variables from two datasets
+common_vars <- function(tibble_x, tibble_y) {
+  print("Variable names which match exactly reported below")
+  intersect(colnames(tibble_x), colnames(tibble_y))
 }
