@@ -66,7 +66,7 @@ emissions_data3 <- tibble(ISIN_code = unique(emissions_data2$ISIN_code),
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 4 - Missing companies filled in using company name matching exercise results
+##### SECTION 4 - Missing companies filled in using company name matching exercise results  ----
 #####             Note that this includes some observations that have been filled from public sources
 #####             e.g, 'AKER BP'
 
@@ -99,7 +99,7 @@ save_dated(company_emissions_data, "Emissions_merge_data", folder = "Interim", c
   
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 5 - Fill emissions data for companies in 2017, using 2016 emissions
+##### SECTION 5 - Fill emissions data for companies in 2017, using 2016 emissions ----
 
 # NB: In instances where latest year 2016 scope 1 + 2 emissions intensity is +-50% of the median intensity,
 #     values are assumed to be erroneous, and older data points are used
