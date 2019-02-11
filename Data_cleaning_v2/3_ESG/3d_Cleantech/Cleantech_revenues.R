@@ -470,4 +470,4 @@ cleantech_rev_results2 <- cleantech_rev_results %>%
 companies_before <- unique(temp$company)
 companies_after <- unique(cleantech_rev_results2$company)
 
-save_dated(cleantech_rev_results2, "Cleatench_patent_and_rev_data", folder = "Output")
+save_dated(cleantech_rev_results2, "Cleantech_patent_and_rev_data", folder = "Output", csv = TRUE)
