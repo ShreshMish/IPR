@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  13/02/2019
+##### Date of last edit:  15/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script refreshes the Net-zero Toolkit model data with new outputs from the Data cleaning folder
 ##### Dependencies:       Outputs from Data cleaning - ensure all file paths are still up-to-date
@@ -95,6 +95,11 @@ cm_dest_folder <- "2_Cleantech_markets/Input"
 # Results from cleantech markets company data cleaning
 copy_dated(source_folder = "3_ESG/3d_Cleantech/Output", source_file = "Cleantech_patent_and_rev_data",
            dest_folder = cm_dest_folder, dest_file = "Cleantech_company_data")
+
+# Results from financial data cleaning (not the full panel)
+### TRY TO DELETE THIS DEPENDENCY IF POSSIBLE
+copy_dated(source_folder = "2_Financial/2a_Preliminary/Output", source_file = "Companies_2016USD_data",
+           dest_folder = cm_dest_folder, dest_file = "Financial_company_data")
 
 # Results from scenarios analysis for renewable capacity
 copy_dated(source_folder = "1_Scenarios/Output", source_file = "Renewable_capacity",
