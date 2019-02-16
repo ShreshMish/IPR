@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  14/02/2019
+##### Date of last edit:  16/02/2019
 ##### Code author:        Justine Schafer
 ##### Edited by:          Shyamal Patel
 ##### Description:        This script imports cleaned Rystad data and scenario analysis data for demand destruction analysis
@@ -151,7 +151,7 @@ company_results4 <- company_results3 %>%
 # Calcluate difference in profits compared to BAU scenario, and stranding / margin impacts
 company_results5 <- company_results4 %>%
   group_by(rystad_name, product, year) %>% 
-  mutate(profit_impact = -(profit_f - profit_f[[which(scenario == "BAU")]])) %>%
+  mutate(profit_impact = (profit_f - profit_f[[which(scenario == "BAU")]])) %>%
   # Reconsider the calculations / assumptions below at a later stage - preserved for now to ensure results
   # align, but the assumptions don't make sense
   mutate(profit_impact_temp = profit_f[[which(scenario == "BAU")]] - (price_f - unit_cost_f[[which(scenario == "BAU")]]) * production_f,

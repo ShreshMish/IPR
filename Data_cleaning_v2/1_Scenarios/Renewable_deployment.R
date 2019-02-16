@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/01/2019
+##### Date of last edit:  16/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM renewable deployment data from Excel and cleans it for use in later calculations and modelling
 ##### Dependencies:       1.  Latest Imperial TIAM scenarios Excel file
@@ -221,17 +221,8 @@ renewable_capa12 <- renewable_capa11 %>%
          Fuel = fuel,
          Units = units)
 
-# Remap scenarios to match spreadsheet names
-renewable_capa13 <- renewable_capa12 %>%
-  mutate(Scenario = case_when(Scenario == "2DS_cheap_ren" ~ "2DS high renewables",
-                              Scenario == "2DS_cheap_ccs" ~ "2DS high CCS",
-                              Scenario == "2DS_cheap_eff" ~ "2DS high efficiency",
-                              Scenario == "2DS_central" ~ "2DS central",
-                              Scenario == "2DS_delay" ~ "2DS delayed",
-                              TRUE ~ Scenario))
-
 # Ad hoc changes to match spreadsheet
-renewable_capa14 <- renewable_capa13 %>%
+renewable_capa13 <- renewable_capa12 %>%
   mutate(Fuel = ifelse(Scenario == "WEO BAU" & Fuel == "Biomass (incl CCS)", "Bioenergy", Fuel))
 
-save_dated(renewable_capa14, "Renewable_capacity", folder = "Output", csv = TRUE)
+save_dated(renewable_capa13, "Renewable_capacity", folder = "Output", csv = TRUE)

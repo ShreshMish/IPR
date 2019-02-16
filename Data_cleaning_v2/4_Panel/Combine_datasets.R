@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  11/02/2019
+##### Date of last edit:  16/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script collects together all datasets for read in by the run model scripts
 #####                     in the carbon cost model folder
@@ -44,7 +44,9 @@ financial_data2 <- financial_data %>%
 geog_exposure_data2 <- geog_exposure_data %>%
   select(company_id, company, NZT_region, NZT_region_revenue_share) %>%
   rename(region = NZT_region,
-         region_revenue_share = NZT_region_revenue_share)
+         region_revenue_share = NZT_region_revenue_share) %>%
+  # Bind regions where a company has no revenue exposure
+  filter(region_revenue_share > 0)
 
 # Select down to minimal set of variables: financial product exposure dataset
 product_exposure_data2 <- product_exposure_data %>%
@@ -60,7 +62,7 @@ product_emissions_data2 <- product_emissions_data %>%
 
 # Select down to minimal set of variables: carbon cost data
 carbon_cost_data <- market_parameter_data %>% 
-  select(region, market, year, lever, abatement_cost, abatement_potential, mean_abatement_cost, cum_abatement_potential)
+  select(region, market, year, carbon_price_sector, mac_curve_sector, lever, abatement_cost, abatement_potential, mean_abatement_cost, cum_abatement_potential)
 
 # Select down to minimal set of variables: market parameter data
 market_parameter_data2 <- market_parameter_data %>%
@@ -86,14 +88,26 @@ carbon_cost_data2 <- carbon_cost_data %>%
 # Arrange carbon cost data in descending order of abatement cost (for given scenario, region, market, year) - this is an important step as the code is index-based
 carbon_cost_data3 <- carbon_cost_data2 %>%
   group_by(region, market, year) %>%
-  arrange(region, market, year, abatement_cost)
+  arrange(region, market, year, abatement_cost) %>%
+  ungroup()
 
 # Cap negative cost entries to 0 (do not allow for negative abatement costs - these are economical at 0 carbon prices)
 carbon_cost_data4 <- carbon_cost_data3 %>%
   mutate(abatement_cost = ifelse(abatement_cost < 0, 0, abatement_cost))
 
+# Recalculate mean abatement costs based on capped abatement costs
+carbon_cost_data5 <- carbon_cost_data4 %>%
+  group_by(region, market, year) %>%
+  arrange(region, market, year, cum_abatement_potential, abatement_cost) %>%
+  mutate(mean_abatement_cost = case_when(cum_abatement_potential == 0 ~ 0,
+                                         
+                                         #### INTRODUCED ERROR TO MAINTAIN CONSISTENCY WITH OLD CODE
+                                         #### DENOMINATOR SHOULD BE CUM_ABATEMENT_POTENTIAL
+                                         TRUE ~ cumsum(abatement_cost * abatement_potential) / 1)) %>%
+  ungroup()
+
 # Save carbon costs dataset
-save_dated(carbon_cost_data4, "Carbon_cost_curves", folder = "Output", csv = FALSE)
+save_dated(carbon_cost_data5, "Carbon_cost_curves", folder = "Output", csv = FALSE)
 
 #--------------------------------------------------------------------------------------------------
 

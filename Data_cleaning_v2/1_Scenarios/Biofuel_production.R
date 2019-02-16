@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/01/2019
+##### Date of last edit:  16/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM biofuel production data from Excel and cleans it for use in later calculations and modelling
 ##### Dependencies:       1.  Latest Imperial TIAM scenarios Excel file
@@ -108,13 +108,7 @@ biofuel_prod7 <- biofuel_prod6 %>%
 ##### SECTION 4 - Rename variables and scenarios to match spreadsheet names ----
 
 biofuel_prod8 <- biofuel_prod7 %>%
-  rename(Scenario = scenario) %>%
-  mutate(Scenario = case_when(Scenario == "2DS_central" ~ "2DS central",
-                              Scenario == "2DS_cheap_ccs" ~ "2DS high CCS",
-                              Scenario == "2DS_cheap_ren" ~ "2DS high renewables",
-                              Scenario == "2DS_cheap_eff" ~ "2DS high efficiency",
-                              Scenario == "2DS_delay" ~ "2DS delayed",
-                              TRUE ~ Scenario))
+  rename(Scenario = scenario)
 
 # Reshape data and add a units column (PJ)
 biofuel_prod9 <- biofuel_prod8 %>%

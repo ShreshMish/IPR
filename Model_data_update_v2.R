@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  15/02/2019
+##### Date of last edit:  16/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script refreshes the Net-zero Toolkit model data with new outputs from the Data cleaning folder
 ##### Dependencies:       Outputs from Data cleaning - ensure all file paths are still up-to-date
@@ -127,3 +127,12 @@ copy_dated(source_folder = "4_Panel/Output", source_file = "Model_panel_final",
 # Cleaned carbon cost curves dataset
 copy_dated(source_folder = "4_Panel/Output", source_file = "Carbon_cost_curves",
            dest_folder = cc_dest_folder, dest_file = "Carbon_cost_curves")
+
+# Results from scenarios analysis for carbon prices
+copy_dated(source_folder = "1_Scenarios/Output", source_file = "Model_co2_prices_2016USD",
+           dest_folder = cc_dest_folder, dest_file = "Carbon_prices_scenario_data")
+
+### TRY TO REMOVE THIS DEPENDENCY IF POSSIBLE
+# Green upside reclassification dataset
+copy_dated(source_folder = "4_Panel/Output", source_file = "Green_upside_reclassification",
+           dest_folder = cc_dest_folder, dest_file = "Green_upside_reclassification")

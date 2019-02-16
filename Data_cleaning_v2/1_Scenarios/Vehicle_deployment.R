@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/01/2019
+##### Date of last edit:  16/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM EV deployment data from Excel and calculates EV and ICE-fired vehicle deployment 
 #####                     for use in later calculations and modelling
@@ -41,12 +41,12 @@ bp_raw_ev_data <- read_excel(input_source("BPOutlook2017_EVdata_VE.xlsx"),
 # Read in scenario names (defined by Carbon_prices.R script - currently inconsistent between scenario data cleaning scripts - hence recasting below)
 scenario_names <- tibble(Scenario = unique(tiam_ev_new_capa$Scenario)) %>%
   mutate(scenario = case_when(Scenario == "s01a_BHP_base" ~ "BAU",
-                              Scenario == "s02_BHP_cum2dt_highREN_EV" ~ "2DS high renewables",
-                              Scenario == "s03_BHP_cum2dt_highCCS_EV" ~ "2DS high CCS",
-                              Scenario == "s04_BHP_cum2dt_lowDEM_EV" ~ "2DS high efficiency",
-                              Scenario == "s06a_BHP_cum2dt_Highfeasibility" ~ "2DS central",
-                              Scenario == "s06c_BHP_cum2dt_hf120v2_delayed2030" ~ "2DS delayed",
-                              Scenario == "s06a_BHP_cumb2c300_Highfeasibility" ~ "B2DS central"))
+                              Scenario == "s02_BHP_cum2dt_highREN_EV" ~ "2DS_cheap_ren",
+                              Scenario == "s03_BHP_cum2dt_highCCS_EV" ~ "2DS_cheap_ccs",
+                              Scenario == "s04_BHP_cum2dt_lowDEM_EV" ~ "2DS_cheap_eff",
+                              Scenario == "s06a_BHP_cum2dt_Highfeasibility" ~ "2DS_central",
+                              Scenario == "s06c_BHP_cum2dt_hf120v2_delayed2030" ~ "2DS_delay",
+                              Scenario == "s06a_BHP_cumb2c300_Highfeasibility" ~ "B2DS_central"))
 
 #--------------------------------------------------------------------------------------------------
 
@@ -114,7 +114,7 @@ iea_ev_sales_stock <- etp_ev_total_sales %>%
 
 # Compare IEA 2DS and B2DS on stock
 iea_ev_stock_adj_factor <- expand.grid(Year = c(2015:2060),
-                                       Scenario = unique(iea_ev_sales_stock$Scenario)) %>%
+                                       Scenario = unique(iea_ev_sales_stock$Scenario), stringsAsFactors = FALSE) %>%
   left_join(iea_ev_sales_stock) %>%
   filter(Type == "EV" | is.na(Type)) %>%
   select(-Type, -Sales) %>%
@@ -129,7 +129,7 @@ iea_ev_stock_adj_factor <- expand.grid(Year = c(2015:2060),
 # Interpoate RTS values for all years 2015 - 2060
 iea_sales <- expand.grid(Year = c(2015:2060),
                          Scenario = unique(iea_ev_sales_stock$Scenario),
-                         Type = unique(iea_ev_sales_stock$Type)) %>%
+                         Type = unique(iea_ev_sales_stock$Type), stringsAsFactors = FALSE) %>%
   full_join(iea_ev_sales_stock) %>%
   select(-Stock) %>%
   spread(key = "Scenario", value = "Sales") %>%
@@ -194,7 +194,7 @@ tiam_ev_sales3 <- tiam_ev_sales2 %>%
   fill(`2015`) %>%
   gather(key = "year", value = "EV_sales", -scenario) %>%
   spread(key = "scenario", value = "EV_sales") %>%
-  mutate_at(.vars = vars(`2DS central`:`B2DS central`),
+  mutate_at(.vars = vars(`2DS_central`:`B2DS_central`),
             .funs = funs(approx(x = year, y = ., xout = year)$y)) %>%
   gather(key = "Scenario", value = "sales", -year) %>%
   spread(key = "year", value = "sales") %>%
@@ -204,14 +204,14 @@ tiam_ev_sales3 <- tiam_ev_sales2 %>%
   gather(key = "year", value = "EV_sales", -Scenario) %>%
   spread(key = "Scenario", value = "EV_sales") %>%
   # Store temporary 2DS central old variable
-  mutate(`2DS central old` = `2DS central`) %>%
-  mutate_at(.vars = vars(`2DS central`:`B2DS central`),
-            .funs = funs(. * (`IEA 2DS` / `2DS central old`))) %>%
-  mutate(`2DS delayed` = case_when(year == 2030 ~ `IEA RTS`,
+  mutate(`2DS_central_old` = `2DS_central`) %>%
+  mutate_at(.vars = vars(`2DS_central`:`B2DS_central`),
+            .funs = funs(. * (`IEA 2DS` / `2DS_central_old`))) %>%
+  mutate(`2DS_delay` = case_when(year == 2030 ~ `IEA RTS`,
                                    year == 2025 ~ NA_real_,
-                                   TRUE ~ `2DS delayed`),
-         `2DS delayed` = approx(x = year, y = `2DS delayed`, xout = year)$y) %>%
-  select(-`2DS central old`) %>%
+                                   TRUE ~ `2DS_delay`),
+         `2DS_delay` = approx(x = year, y = `2DS_delay`, xout = year)$y) %>%
+  select(-`2DS_central_old`) %>%
   gather(key = "Scenario", value = "Sales", -year) %>%
   spread(key = "year", value = "Sales")
 
@@ -236,11 +236,11 @@ tiam_ev_sales4 <- tiam_ev_sales3 %>%
 tiam_fossil_sales2 <- tiam_fossil_sales %>%
   left_join(tiam_ev_sales4) %>%
   select(-`IEA 2DS`) %>%
-  mutate_at(.vars = vars(`2DS central`:`IEA RTS`),
+  mutate_at(.vars = vars(`2DS_central`:`IEA RTS`),
             .funs = funs(`IEA RTS_Total` - .)) %>%
-  mutate_at(.vars = vars(`2DS central`:`IEA RTS`),
+  mutate_at(.vars = vars(`2DS_central`:`IEA RTS`),
             .funs = funs(approx(x = year, y = ., xout = year)$y)) %>%
-  mutate(`2DS high efficiency` = ifelse(year >= 2025, `2DS central`, `2DS high efficiency`)) %>%
+  mutate(`2DS_cheap_eff` = ifelse(year >= 2025, `2DS_central`, `2DS_cheap_eff`)) %>%
   select(-`IEA RTS_Total`) %>%
   gather(key = "Scenario", value = "sales", -year) %>%
   spread(key = "year", value = "sales")

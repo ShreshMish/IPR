@@ -106,7 +106,7 @@ EV_scenario_data2 <- EV_scenario_data %>%
   mutate(stock = case_when(year == 2025 ~ NA_real_,
                            TRUE ~ stock)) %>%
   # DANGER - CHANGE THIS FOR NEXT SET OF SCENARIOS
-  mutate(scenario = ifelse(scenario == "B2DS central", "Paris_INDCs", scenario))
+  mutate(scenario = ifelse(scenario == "B2DS_central", "Paris_INDCs", scenario))
 
 # Biofuels
 biofuel_scenario_data2 <- biofuel_scenario_data %>%
