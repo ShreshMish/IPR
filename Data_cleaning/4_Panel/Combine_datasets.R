@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  16/02/2019
+##### Date of last edit:  17/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script collects together all datasets for read in by the run model scripts
 #####                     in the carbon cost model folder
@@ -100,10 +100,7 @@ carbon_cost_data5 <- carbon_cost_data4 %>%
   group_by(region, market, year) %>%
   arrange(region, market, year, cum_abatement_potential, abatement_cost) %>%
   mutate(mean_abatement_cost = case_when(cum_abatement_potential == 0 ~ 0,
-                                         
-                                         #### INTRODUCED ERROR TO MAINTAIN CONSISTENCY WITH OLD CODE
-                                         #### DENOMINATOR SHOULD BE CUM_ABATEMENT_POTENTIAL
-                                         TRUE ~ cumsum(abatement_cost * abatement_potential) / 1)) %>%
+                                         TRUE ~ cumsum(abatement_cost * abatement_potential) / cum_abatement_potential)) %>%
   ungroup()
 
 # Save carbon costs dataset
