@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  03/02/2019
+##### Date of last edit:  17/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in coal supply curve data from Dexter Lee's analysis
 #####                     in preparation for later modelling on fossil fuel demand destruction
@@ -132,10 +132,7 @@ coal_exposure_data6 <- coal_exposure_data5 %>%
   # Observation year default = 2017, ownership is 100% owned by company, reserve life is industry-average
   mutate(observation_year = ifelse(is.na(observation_year), 2017, observation_year),
          perc_ownership = ifelse(is.na(perc_ownership), 100, perc_ownership),
-         
-         ## ERROR HERE MAINTAINED FROM OLD CODE - BHP DOUBLE COUNTED IN RESERVE LIFE CALCULATION
-         reserve_life = ifelse(is.na(reserve_life), 13.4333, reserve_life))
-         #reserve_life = ifelse(is.na(reserve_life), mean(reserve_life, na.rm = TRUE), reserve_life))
+         reserve_life = ifelse(is.na(reserve_life), mean(reserve_life, na.rm = TRUE), reserve_life))
 
 # Calculate mine-level production shares for each company
 coal_exposure_data7 <- coal_exposure_data6 %>%

@@ -1,15 +1,15 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  16/02/2019
+##### Date of last edit:  17/02/2019
 ##### Model author:       Robert Ritz
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1. Cleaned financial and emissions dataset
-#####                     2. Carbon cost curves dataset
-#####                     3. Demand destruction model:
+#####                     2. Demand destruction model:
 #####                         a) Upstream oil & gas results
 #####                         b) Upstream coal results
 #####                         c) Downstream and oil & gas services results [industry average]
 #####                         d) ICE vehicles results [industry average]
-#####                     4. Cleantech market model results
+#####                     3. Cleantech market model results
+#####                     4. Cleaned carbon costs results
 ##### Notes:              None
 ##### Called by:          None
 
@@ -23,12 +23,6 @@ source("utils.R")
 
 # Data: Cleaned financial and emissions dataset read in
 model_panel <- readRDS(input_source("Model_panel.rds"))
-
-# Data: Carbon cost curves
-carbon_cost_curves <- readRDS(input_source("Carbon_cost_curves.rds"))
-
-# Data: Carbon prices scenario data
-carbon_prices <- readRDS(input_source("Carbon_prices_scenario_data.rds"))
 
 ### TRY TO REMOVE THIS DEPENDENCY
 # Data: Cleantech markets reclassification
@@ -48,6 +42,9 @@ dd_ice_vehicles <- readRDS("1_Demand_destruction/Output/ICE_vehicle_dd_qimpacts.
 
 # CM: cleantech markets results
 cleantech_markets <- readRDS("2_Cleantech_markets/Output/Cleantech_npv_impacts.rds")
+
+# CC: Carbon cost results
+carbon_cost_results <- readRDS("3_Cost_and_competition/Interim/Carbon_costs.rds")
 
 #--------------------------------------------------------------------------------------------------
 
@@ -104,71 +101,10 @@ dd_cm_industry_results <- dd_fossil_fuel_downstream2 %>%
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 3 - Calculate carbon costs by climate scenario ----
-
-# Merge together carbon cost curves and scenario-level carbon prices
-carbon_prices2 <- carbon_prices %>%
-  rename(carbon_price_sector = sector)
-
-carbon_cost_results <- carbon_prices2 %>%
-  left_join(carbon_cost_curves, by = c("year", "region", "carbon_price_sector")) %>%
-  filter(year >= 2017) %>%
-  select(scenario, market, region, year, carbon_price_sector, mac_curve_sector, lever, carbon_price, everything()) %>%
-  filter(!is.na(market))
-
-# Find the marginal abatement lever (most expensive, yet still utilised lever)
-carbon_cost_results2 <- carbon_cost_results %>%
-  group_by(scenario, market, region, year) %>% 
-  # Order entries in order of increasing cost
-  arrange(scenario, market, region, year, mean_abatement_cost, cum_abatement_potential) %>%
-  # Find utilised levers based on the realised carbon price
-  mutate(utilised_lever = case_when(abatement_cost <= carbon_price ~ 1,
-                                    TRUE ~ NA_real_),
-         marginal_entry = cumsum(utilised_lever),
-         # Note that marginal entry takes value -Infinity when all levers are unprofitable (abatement cost > carbon price)
-         marginal_entry = case_when(marginal_entry == max(marginal_entry, na.rm = TRUE) ~ 1,
-                                    TRUE ~ 0))
-  
-# Calculate carbon costs based on the carbon price, actual abatement and mean abatement cost
-carbon_cost_results3 <- carbon_cost_results2 %>% 
-  mutate(actual_abatement = case_when(max(marginal_entry) == 0 ~ 0, # Special case for when no abatement options are used
-                                      marginal_entry == 1 ~ cum_abatement_potential, # Take total actual abatement % from the marginal entry row
-                                      TRUE ~ NA_real_), # Residual case [non-marginal entries]
-         actual_abatement_cost = case_when(max(marginal_entry) == 0 ~ 0, # Special case for when no abatement options are used
-                                            marginal_entry == 1 ~ mean_abatement_cost, # Take mean abatement cost from the marginal entry row
-                                            TRUE ~ NA_real_), # Residual case [non-marginal entries]
-         carbon_cost = carbon_price * (1 - actual_abatement) + actual_abatement_cost * actual_abatement) %>%
-  ungroup()
-
-save_dated(carbon_cost_results3, "Carbon_cost_calculations", folder = "Interim", csv = FALSE)
-
-# Drop the lever variable and keep only unique values
-carbon_cost_results4 <- carbon_cost_results3 %>%
-  filter(!is.na(actual_abatement)) %>%
-  select(scenario, market, region, year, carbon_price, carbon_cost) %>%
-  unique()
-
-save_dated(carbon_cost_results4, "Carbon_costs", folder = "Interim", csv = FALSE)
-
-# Reshape carbon prices and carbon costs data before merging into main dataset
-reshape_carbon <- function(var) {
-  temp <- carbon_cost_results4 %>%
-    select(scenario:year, !!var) %>%
-    spread(key = year, value = !!var) %>%
-    rename_at(vars(`2017`:`2050`), funs(paste0(var, "_", .)))
-  return(temp)
-}
-
-carbon_cost_results5 <- reshape_carbon("carbon_cost")
-carbon_cost_results6 <- reshape_carbon("carbon_price") %>%
-  left_join(carbon_cost_results5, by = c("scenario", "market", "region"))
-
-#--------------------------------------------------------------------------------------------------
-
-##### SECTION 4 - Merge all datasets together ----
+##### SECTION 3 - Merge all datasets together ----
 
 model_panel2 <- model_panel %>%
-  left_join(carbon_cost_results6, by = c("market", "region")) %>%
+  left_join(carbon_cost_results, by = c("market", "region")) %>%
   select(scenario, everything()) %>%
   # Temporary scenario merge variable for 'Lack of coordination' scenario [same DD/CM results as 'Central' scenario]
   mutate(scenario_temp = ifelse(scenario == "2DS_regional", "2DS_central", scenario)) %>%
@@ -180,7 +116,7 @@ model_panel2 <- model_panel %>%
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 5 - Ad-hoc changes to the data ----
+##### SECTION 4 - Ad-hoc changes to the data ----
 
 ###### ELIMINATE THIS SECTION IN FURTHER CODE UPDATES
 model_panel3 <- model_panel2 %>%
