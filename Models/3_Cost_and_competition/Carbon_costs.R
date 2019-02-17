@@ -56,7 +56,8 @@ carbon_cost_results3 <- carbon_cost_results2 %>%
          actual_abatement_cost = case_when(max(marginal_entry) == 0 ~ 0, # Special case for when no abatement options are used
                                            marginal_entry == 1 ~ mean_abatement_cost, # Take mean abatement cost from the marginal entry row
                                            TRUE ~ NA_real_), # Residual case [non-marginal entries]
-         carbon_cost = carbon_price * (1 - actual_abatement) + actual_abatement_cost * actual_abatement) %>%
+         carbon_cost = carbon_price * (1 - actual_abatement) + actual_abatement_cost * actual_abatement,
+         carbon_cost = ifelse(carbon_cost < 0, 0, carbon_cost)) %>% # This deals with sectors which have cumulative abatement potential >100% [don't want to allow for negative carbon costs]
   ungroup()
 
 save_dated(carbon_cost_results3, "Carbon_cost_calculations", folder = "Interim", csv = FALSE)
