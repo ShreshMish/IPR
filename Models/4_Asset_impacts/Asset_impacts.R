@@ -42,6 +42,10 @@ company_results <- subsidiary_results %>%
   mutate(profit_npv_total = (rowSums(.[grep("profit_npv_post_closure_post_tax", names(.))]) - profit_npv_post_closure_post_tax_2017)) %>%
   select(scenario, company_id, company, profit_npv_total, profit_npv_total_cap)
 
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 3 - Calculate equity impacts ----
+
 equity_data2 <- equity_data %>%
   group_by(company_id, company) %>%
   mutate(company_market_cap = sum(market_cap, na.rm = TRUE)) %>%
@@ -96,4 +100,43 @@ save_dated(equity_results2, "Equity_level_results", folder = "Output", csv = FAL
 save_dated(equity_parentmarket_results, "Equity_pmarket_results", folder = "Output", csv = TRUE)
 save_dated(equity_domicile_results, "Equity_dom_results", folder = "Output", csv = TRUE)
 save_dated(equity_parentmarket_domicile_results, "Equity_pmarket_dom_results", folder = "Output", csv = TRUE)
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 4 - Calculate fixed income impacts ----
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

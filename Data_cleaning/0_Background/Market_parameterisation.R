@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/01/2019
+##### Date of last edit:  17/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script parameterises the markets used within the Net-Zero Toolkit
 #####                     Source files are based on judgements of product differentiation and individual elasticity parameter
@@ -94,12 +94,13 @@ market_list_data3 <-  market_list_data2 %>%
 ##### SECTION 4 - Allocate MAC curves to markets, based on MAC curve sector definitions
 
 # MAC curve sector allocation
-agriculture <- c("Farm Fish Plantation", "Food and broadline retailers", "Food Products")
+#agriculture <- c("Farm Fish Plantation", "Food and broadline retailers", "Food Products") # Drop this category - MAC is very generous and no companies are really in this sector
+agriculture <- c("")
 buildings <- c("Diversified REITs", "Gambling", "Home Improvement Ret.", "Hotels", "Ind. & Office REITs", "Mortgage REITs", "Real Estate Hold, Dev",
-               "Real Estate Services", "Residential REITs", "Restaurants & Bars", "Retail REITs", "Specialty REITs")
+               "Real Estate Services", "Residential REITs", "Restaurants & Bars", "Retail REITs", "Specialty REITs", "Food and broadline retailers")
 cement <- c("Ceramics and glass", "Concrete and cement", "Other building materials") #This category is broad but includes cement companies (additional screening required)
 chemicals <- c("Biotechnology", "Other Chemicals", "Petrochemicals", "Pharmaceuticals", "Specialty Chemicals")
-forestry <- c("Forestry", "Paper")
+forestry <- c("Forestry")
 iron_and_steel <- c("Aluminum", "Copper", "Iron & Steel", "Lithium", "Metal product retail", "Nonferrous Metals", "Other metals production",
                     "Plat.& Precious Metal")
 # Includes metals mining
@@ -117,7 +118,8 @@ other_industry <- c("Aerospace", "Auto Parts", "Automobiles", "Brewers", "Clothi
                     "Medical Supplies", "Mobile Telecom.", "Multiutilities", "Nondur.Household Prod", "Personal Products",
                     "Publishing", "Recreational products and services", "Renewable Energy Eq.", "Semiconductors",
                     "Soft Drinks", "Transport - Rail", "Telecom. Equipment", "Telecom", "Tobacco", "Toys", "Travel & Tourism", "Transport Services", "Water",
-                    "GR_biofuels", "GR_CCS", "GR_hydro", "GR_EVs", "GR_minerals", "GR_solar", "GR_wind")
+                    "GR_biofuels", "GR_CCS", "GR_hydro", "GR_EVs", "GR_minerals", "GR_solar", "GR_wind", "Paper",
+                    "Farm Fish Plantation", "Food Products")
 power <- c("Electricity retail", "Electricity T&D", "Power generation")
 transport_air <- c("Transport - Air")
 transport_road <- c("Transport - Delivery", "Transport - Public", "Transport - Taxi", "Transport - Trucking")
