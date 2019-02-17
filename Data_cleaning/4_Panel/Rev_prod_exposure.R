@@ -418,22 +418,6 @@ save_dated(product_exposure_results5, "Prod_exposure_results_oilgascoalgreen", f
 product_exposure_results6 <- product_exposure_results5 %>%
   select(company_id:product_revenue_share)
 
-
-##### RETAIN EXISTING ERROR TO ENSURE EASE OF COMPARABILITY
-# REMOVE CIA ENERGETICA DE MINAS GERAIS PN
-prod_exposure_2016_data %<>%
-  filter(company_id == "BRCMIGACNPR3") %>%
-  select(company_id, company, parent_market, market, product_revenue_share) %>%
-  mutate(year = 2017)
-product_exposure_results6 %<>%
-  left_join(prod_exposure_2016_data, by = c("company_id", "company", "parent_market", "year", "market")) %>%
-  mutate(product_revenue_share = case_when(company_id != "BRCMIGACNPR3" ~ product_revenue_share.x,
-                                           TRUE ~ product_revenue_share.y)) %>%
-  select(company_id, company, parent_market, year, revenue, market, product_revenue_share)
-
-
-
-
 #--------------------------------------------------------------------------------------------------
 
 #### Section 9: Ad hoc changes to company parent market categorisations ----
