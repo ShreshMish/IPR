@@ -136,3 +136,22 @@ copy_dated(source_folder = "1_Scenarios/Output", source_file = "Model_co2_prices
 # Green upside reclassification dataset
 copy_dated(source_folder = "4_Panel/Output", source_file = "Green_upside_reclassification",
            dest_folder = cc_dest_folder, dest_file = "Green_upside_reclassification")
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 5 - Update asset-level impacts data files ----
+
+# Define destination fiolder for asset-level impacts files
+ai_dest_folder <- "4_Asset_impacts/Input"
+
+# Cleaned equity financial data
+copy_dated(source_folder = "2_Financial/2a_Preliminary/Output", source_file = "Equity_reconciled_2016USD_data",
+           dest_folder = ai_dest_folder, dest_file = "Equity_reconciled_2016USD_data")
+
+# Cleaned fixed income financial data
+copy_dated(source_folder = "2_Financial/2a_Preliminary/Output", source_file = "FI_reconciled_2016USD_data",
+           dest_folder = ai_dest_folder, dest_file = "FI_reconciled_2016USD_data")
+
+# Revised product exposure data
+copy_dated(source_folder = "4_Panel/Output", source_file = "Rev_prod_exposure_results",
+           dest_folder = ai_dest_folder, dest_file = "Revised_product_exposure_results")
