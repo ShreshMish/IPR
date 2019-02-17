@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  30/01/2019
+##### Date of last edit:  17/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in Trucost CO2 emissions data and matches it against the Thomson Reuters
 #####                     companies list, incorporating results from TN and SP's ISIN code matching exercise
@@ -108,11 +108,6 @@ company_emissions_data2 <- company_emissions_data %>%
          disclosure_type, missing_co2_scope_1_2017:missing_co2_scope_3_2017) %>%
   rename(trucost_ISIN_code = co2_merge_ISIN_code) %>%
   group_by(company_id) %>%
-  
-  ### Note that 2012 observations were removed from previous median emissions intensity calculations
-  ### by mistake - preserve error for now to test code cleaning changes
-  filter(year != 2012) %>%
-  
   mutate(co2_intensity_scope_1_2 = co2_intensity_scope_1 + co2_intensity_scope_2,
          median_co2_intensity_scope_1_2 = median(co2_intensity_scope_1_2, na.rm = TRUE)) %>%
   arrange(company_id, year) %>%
