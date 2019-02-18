@@ -45,7 +45,8 @@ parameter_data <- tibble(discount_rate = 0.0575, #Changing discount rate from 0.
 # Note that variables option only affects company-level results
 all_results <- run_model(model_data, parameter_data, "", variables = quo(c("market_cap_2017", starts_with("profit_post_closure_pre_tax"),
                                                                            starts_with("profit_post_closure_post_tax"),
-                                                                           starts_with("profit_npv_post_closure_post_tax"))))
+                                                                           starts_with("profit_npv_post_closure_post_tax"),
+                                                                           starts_with("revenue"))))
 
 subsidiary_results <- all_results[[1]]
 market_region_results <- all_results[[2]]
