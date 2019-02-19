@@ -17,7 +17,7 @@ source("utils.R")
 tiam_fossil_fuel_prod <- read_excel(input_source("Vivid_20190208.xlsx"),
                                     sheet = "AA_PrimaryEnergyProd", skip = 6)
 
-# Read in IEA WEO scenario data - fossil fuel production (NB - must save a xlsx version of the macro-enabled WEO Annex A workbook) - units are in 'Units' column
+# Read in public scenarios consolidated data - fossil fuel production sheet
 public_scen_fossil_fuel_prod <- read_excel(input_source("Public_scenarios.xlsx"),
                                            sheet = "W20. Fossil fuel prod", range = "$B$48:$Q$90")
 
