@@ -1,14 +1,10 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  16/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM EV deployment data from Excel and calculates EV and ICE-fired vehicle deployment 
 #####                     for use in later calculations and modelling
 ##### Dependencies:       1.  Latest Imperial TIAM scenarios Excel file
 #####                     2.  IEA WEO scenarios data
-#####                     (current scenario data = "Input/Vivid_scenario_runs.xls" & "Input/Vivid_scenario_runs_newdb.xls" (for Weak 2020))
-
-##### TIAM has been updated with new technology costs and constraint changes, which is causing discrepancies between the same 
-##### scenario run in different versions - adjust 'weak 2020' scenario from new database to compensate for this
 
 #--------------------------------------------------------------------------------------------------
 
@@ -19,241 +15,291 @@ main_save_folder <- "1_Scenarios"
 source("utils.R")
 
 # Read in TIAM scenario data from old scenarios (skip 6 empty rows at the top of the sheet) - units are GW in snapshot year
-tiam_ev_new_capa <- read_excel(input_source("Vivid_scenario_runs.xls"),
-                               sheet = "AA_EVNewCapacity", skip = 6)
+tiam_vehicle_stock <- read_excel(input_source("Vivid_20190208.xlsx"),
+                               sheet = "AA_TransCapacity", skip = 6)
 
-# Read in TIAM scenario data from new scenarios (skip 6 empty rows at the top of the sheet) - units are GW in snapshot year
-tiam_w2020_renewable_total_capa <- read_excel(input_source("Vivid_scenario_runs_newdb.xls"),
-                                              sheet = "AA_EVNewCapacity", skip = 6)
+# TIAM transport fleet categories from Hawkes (01/02/19 email)
+tiam_vehicle_categories <- tribble(~ProcessSet,	~Definition, ~category, ~mapping,
+                                   "TRA_$AFV",	 "Alternative fuel vehicles (e.g. ethanol, methanol, LPG, gas…", "Alternative fuels", "Alternative fuels",
+                                   "TRA_$ELC",	 "Electric vehicles", "Electric", "EVs",
+                                   "TRA_$HH2",	 "Hydrogen vehicles", "Hydrogen", "Alternative fuels",
+                                   "TRA_$ICE",	 "ICE vehicles", "ICE", "ICEs",
+                                   "TRA_$OIL-HYBRID",	"Hybrid vehicles (non plug-in)", "Hybrid (non-plug-in)", "ICEs",
+                                   "TRA_$PHEV", "Plug-in hydrids", "Hybrid (plug-in)", "EVs")
 
-# Read in IEA EV stock scenario data (2017 Global EV Outlook)
-evo_raw_ev_total_stock <- read_excel(input_source("Global_EV_Outlook_VE.xlsx"),
-                                    sheet = "R1. IEA EVO deployment", range = "$A$9:$C$20")
+# Read in TIAM scenario names
+scenario_names <- read_excel(input_source("Vivid_scenario_names.xlsx"),
+                             sheet = "R1. Scenario specifications", range = "$A$10:$E$59")
 
-# Read in IEA EV sales scenario data (2017 Energy Technology Perspectives)
-etp_raw_ev_total_sales <- read_excel(input_source("ETP2017_EVsales_VE.xlsx"),
-                                     sheet = "R2. IEA ETP sales", range = "$A$9:$D$15")
+# Read in public scenarios consolidated data - EVO18 vehicle stock historical sheet
+evo18_ev_hist_stock <- read_excel(input_source("Public_scenarios.xlsx"),
+                             sheet = "R15. EVO 18 hist stock", range = "$A$9:$N$32")
 
-# Read in BP Energy Outlook 2018 sales and vehicle km scenario data (2018 BP Energy Outlook)
-bp_raw_ev_data <- read_excel(input_source("BPOutlook2017_EVdata_VE.xlsx"),
-                             sheet = "R3. BP Energy EV factors", range = "$A$11:$M$13")
+# Read in public scenarios consolidated data - EVO 17 vehicle stock scenarios sheet
+evo17_ev_scen_stock <- read_excel(input_source("Public_scenarios.xlsx"),
+                                  sheet = "R14. EVO 17 scenario stock", range = "$A$10:$H$14")
 
-# Read in scenario names (defined by Carbon_prices.R script - currently inconsistent between scenario data cleaning scripts - hence recasting below)
-scenario_names <- tibble(Scenario = unique(tiam_ev_new_capa$Scenario)) %>%
-  mutate(scenario = case_when(Scenario == "s01a_BHP_base" ~ "BAU",
-                              Scenario == "s02_BHP_cum2dt_highREN_EV" ~ "2DS_cheap_ren",
-                              Scenario == "s03_BHP_cum2dt_highCCS_EV" ~ "2DS_cheap_ccs",
-                              Scenario == "s04_BHP_cum2dt_lowDEM_EV" ~ "2DS_cheap_eff",
-                              Scenario == "s06a_BHP_cum2dt_Highfeasibility" ~ "2DS_central",
-                              Scenario == "s06c_BHP_cum2dt_hf120v2_delayed2030" ~ "2DS_delay",
-                              Scenario == "s06a_BHP_cumb2c300_Highfeasibility" ~ "B2DS_central"))
+# Adjustment factor for ratio of bn passenger km in TIAM to OICA light duty vehicle fleet in 2012
+### IMPROVE AUDIT TRAIL HERE - CALCULATIONS IN R
+tiam_ev_units_adj_factor <- 0.048634
+
+# This parameter is used to calculate the replacement rate for the existing vehicle fleet - TN responsible for figure
+vehicle_lifetime <- 11
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 2 - Clean, reshape and create aggregate EV new capacity data (2020 - 50) ----
+##### SECTION 2 - Clean and reshape IEA EVO EV fleet data (2015 - 50) ----
 
-ev_new_capa <- tiam_ev_new_capa %>%
-  left_join(scenario_names) %>%
-  filter(!is.na(scenario)) %>%
-  select(scenario, `Region\\Period`, `2030`:`2100`) %>%
-  group_by(scenario) %>%
-  # Summarise over regions
-  summarise_at(.vars = vars(`2030`:`2100`),
-               .funs = funs(sum(., na.rm = TRUE)))
+# Clean up scenario names and remove unneeded scenarios (ETP17, WEO16, Shell Sky etc.)
+scenario_names2 <- scenario_names %>%
+  rename(old_scenario_name = `Scenario name`,
+         scenario = `Report name`,
+         public_scenario = `Public scen Report name`) %>%
+  select(old_scenario_name, scenario, public_scenario)
 
-# Add zero-value years
-ev_new_years <- expand.grid(scenario = unique(ev_new_capa$scenario),
-                            year = c(2005, 2007, 2012, 2020)) %>%
-  mutate(value = 0) %>%
-  spread(key = "year", value = "value")
-
-ev_new_capa2 <- ev_new_capa %>%
-  full_join(ev_new_years) %>%
-  gather(key = "year", value = "EV_new_capacity_km", -scenario) %>%
+evo18_ev_hist_stock2 <- evo18_ev_hist_stock %>%
+  rename(region = X__1) %>%
+  filter(region == "Total") %>%
+  select(-region) %>%
+  gather(key = year, value = stock, `2005`:`2017`) %>%
   mutate(year = as.numeric(year)) %>%
+  filter(year >= 2012) %>%
+  mutate(units = "mn vehicles",
+         stock = stock / 10^3,
+         category = "EVs") %>%
+  select(category, units, year, stock)
+
+# Apply EVO scenario names
+evo17_ev_scen_stock2 <- evo17_ev_scen_stock %>%
+  rename(scenario = Scenario) %>% 
+  select(scenario, everything()) %>%
+  mutate(category = "EVs",
+         units = "mn vehicles") %>%
+  select(scenario, category, units, everything()) %>%
+  gather(key = year, value = stock, `2016`:`2030`) %>%
+  mutate(year = as.numeric(year)) %>%
+  select(scenario, category, units, year, stock)
+
+evo17_ev_scen_stock3 <- expand.grid(scenario = unique(evo17_ev_scen_stock2$scenario),
+                                    year = c(unique(evo17_ev_scen_stock2$year), 2040, 2050), stringsAsFactors = FALSE) %>%
+  left_join(evo17_ev_scen_stock2, by = c("scenario", "year")) %>%
+  fill(category) %>%
+  fill(units) %>%
+  spread(key = year, value = stock) %>%
+  # Change the below to be (2030 - 2025) * 2 when you have time
+  mutate(`2040` = `2030` + (`2030` - `2020`),
+         `2050` = `2040` + (`2040` - `2030`)) %>%
+  gather(key = year, value = stock, -(scenario:units)) %>%
   arrange(scenario, year) %>%
-  filter(year <= 2050)
+  mutate(year = as.numeric(year)) %>%
+  filter(year >= 2020 & year != 2025)
 
-# Create new vehicles variable based on BP Energy Outlook usage factors (km / vehicle)
-usage_factor <- mean(bp_raw_ev_data$`km / BEV`)
+# Merge together the two dataset
+evo17_ev_hist_stock3 <- expand.grid(scenario =  unique(evo17_ev_scen_stock2$scenario),
+                                    year = unique(evo18_ev_hist_stock2$year), stringsAsFactors = FALSE) %>%
+  left_join(evo18_ev_hist_stock2, by = "year") %>%
+  filter(year >= 2015)
 
-# Calculate number of new vehicles required to deliver additional vehicle km from new vehicles (*1000 to adjust units from bn vehicle km to million vehicles)
-tiam_ev_sales <- ev_new_capa2 %>%
-  mutate(EV_new_vehicles = EV_new_capacity_km / usage_factor * 1000)
+evo_scen_stock <- evo17_ev_scen_stock3 %>%
+  bind_rows(evo17_ev_hist_stock3) %>%
+  arrange(scenario, year)
+
+save_dated(evo_scen_stock, "IEA_EVO_vehicle_fleet", folder = "Interim", csv = TRUE)
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 3 - Clean, reshape and create aggregate IEA data (2020 - 50) ----
+##### SECTION 3 - Clean, reshape and change units of TIAM vehicle fleet data (2012 - 50) ----
 
-# Clean IEA ETP scenario data
-etp_ev_total_sales <- etp_raw_ev_total_sales %>%
-  rename(EV_sales = `Sales (mn vehicles)`) %>%
-  # Add IEA B2DS values for 2015 (equal to RTS)
-  spread(key = "Scenario", value = "EV_sales") %>%
-  mutate(`IEA B2DS` = ifelse(Year == 2015, `IEA RTS`, `IEA B2DS`)) %>%
-  gather(key = "Scenario", value = "Sales", -(Year:Type)) %>%
-  spread(key = "Type", value = "Sales") %>% 
-  mutate(Total = EV + Fossil) %>%
-  gather(key = "Type", value = "Sales", -(Year:Scenario))
+tiam_vehicle_stock2 <- tiam_vehicle_stock %>%
+  left_join(tiam_vehicle_categories, by = "ProcessSet") %>%
+  rename(old_scenario_name = Scenario,
+         oldsubcat = ProcessSet,
+         subcat = category,
+         category = mapping,
+         region = `Region\\Period`) %>%
+  select(-Definition) %>%
+  gather(key = year, value = stock, (`2005`:`2100`)) %>%
+  mutate(year = as.numeric(year)) %>%
+  select(old_scenario_name, region, category, subcat, year, stock)
 
-# Clean IEA Global EV Outlook scenario data
-evo_ev_total_stock <- evo_raw_ev_total_stock %>%
-  filter(Year != 2016) %>%
-  rename(Stock = `EV stock (mn vehicles)`) %>%
-  # Add IEA 2DS and B2DS values for 2015
-  spread(key = "Scenario", value = "Stock") %>%
-  mutate_at(.vars = vars(`IEA 2DS`:`IEA B2DS`),
-            .funs = funs(ifelse(Year == 2015, `IEA RTS`, .))) %>%
-  gather(key = "Scenario", value = "Stock", -Year) %>%
-  mutate(Type = "EV")
+# Merge in report scenario names and bin unrequired scnearios
+tiam_vehicle_stock3 <- tiam_vehicle_stock2 %>%
+  left_join(scenario_names2, by = "old_scenario_name") %>%
+  select(-old_scenario_name, -public_scenario) %>%
+  filter(!is.na(scenario)) %>%
+  select(scenario, category, subcat, everything())
 
-# Merge together IEA datasets
-iea_ev_sales_stock <- etp_ev_total_sales %>%
-  full_join(evo_ev_total_stock) %>%
-  arrange(Scenario, Type, Year)
-
-# Compare IEA 2DS and B2DS on stock
-iea_ev_stock_adj_factor <- expand.grid(Year = c(2015:2060),
-                                       Scenario = unique(iea_ev_sales_stock$Scenario), stringsAsFactors = FALSE) %>%
-  left_join(iea_ev_sales_stock) %>%
-  filter(Type == "EV" | is.na(Type)) %>%
-  select(-Type, -Sales) %>%
-  spread(key = "Scenario", value = "Stock") %>%
-  select(-`IEA RTS`) %>%
-  # Interpolate all years (holding values fixed for years after 2030)
-  mutate_at(.vars = vars(`IEA 2DS`:`IEA B2DS`),
-            .funs = funs(approx(x = Year, y = ., xout = Year, rule = 2)$y)) %>%
-  mutate(adj_factor_B2DS_to_2DS = `IEA 2DS` / `IEA B2DS`) %>%
-  select(Year, adj_factor_B2DS_to_2DS)
-
-# Interpoate RTS values for all years 2015 - 2060
-iea_sales <- expand.grid(Year = c(2015:2060),
-                         Scenario = unique(iea_ev_sales_stock$Scenario),
-                         Type = unique(iea_ev_sales_stock$Type), stringsAsFactors = FALSE) %>%
-  full_join(iea_ev_sales_stock) %>%
-  select(-Stock) %>%
-  spread(key = "Scenario", value = "Sales") %>%
-  arrange(Type, Year) %>%
-  # Interpolate scenario quantities for RTS, by type of vehicle
-  group_by(Type) %>%
-  mutate(`IEA RTS` = approx(x = Year, y = `IEA RTS`, xout = Year, rule = 2)$y) %>%
+# Summarise over regions and subcategories
+tiam_vehicle_stock4 <- tiam_vehicle_stock3 %>%
+  group_by(scenario, year, category) %>%
+  summarise(stock = sum(stock, na.rm = TRUE)) %>%
   ungroup() %>%
-  # Join in adjustment factors
-  full_join(iea_ev_stock_adj_factor)
+  filter(year >= 2012) %>%
+  mutate(units = "Bn passenger km") %>%
+  select(scenario, category, units, year, stock)
 
-# Impute 2DS EV sales based on ratio of 2DS and B2DS vehicle stocks
-iea_sales2 <- iea_sales %>%
-  group_by(Year) %>%
-  mutate(`IEA RTS Total` = mean(ifelse(Type == "Total", `IEA RTS`, NA_real_), na.rm = TRUE),
-         `IEA B2DS Total` = mean(ifelse(Type == "Total", `IEA B2DS`, NA_real_), na.rm = TRUE)) %>%
-  # Adjust down B2DS values by ratio of total sales to IEA RTS Total sales
-  mutate(`IEA B2DS` = `IEA B2DS` * (`IEA RTS Total` / `IEA B2DS Total`)) %>%
-  # Interpolate scenario quantities for B2DS, by type of vehicle
-  group_by(Type) %>%
-  mutate(`IEA B2DS` = approx(x = Year, y = `IEA B2DS`, xout = Year, rule = 2)$y) %>%
+# Switch units from bn passenger km to mn vehicles using the OICA adjustment ratio
+tiam_vehicle_stock5 <- tiam_vehicle_stock4 %>%
+  mutate(stock = stock * tiam_ev_units_adj_factor,
+         units = "mn vehicles")
+
+# Add total vehicle stock category for later use
+tiam_vehicle_stock6 <- expand.grid(scenario = unique(tiam_vehicle_stock5$scenario),
+                                   category = c(unique(tiam_vehicle_stock5$category), "Total"),
+                                   year = unique(tiam_vehicle_stock5$year), stringsAsFactors = FALSE) %>%
+  left_join(tiam_vehicle_stock5, by = c("scenario", "category", "year")) %>%
+  fill(units) %>%
+  group_by(scenario, year) %>%
+  mutate(stock = ifelse(category == "Total", sum(stock, na.rm = TRUE), stock)) %>%
+  unique %>%
+  arrange(scenario, category, year)
+
+# Merge together EVO scenarios and TIAM scenarios are rename EVO scenarios for baselines (Paris NDCs and No New Action)
+vehicle_stock <- tiam_vehicle_stock6 %>%
+  bind_rows(evo_scen_stock) %>% # EVO scenario names are RTS, Paris NDCs, 2DS and B2DS
+  filter(year <= 2050 & year >= 2015) %>%
+  select(-units)
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 4 - Ad-hoc changes to the TIAM scenario data ----
+
+ev_vehicle_stock <- vehicle_stock %>%
+  filter(category == "EVs") %>%
+  spread(key = "scenario", value = "stock")
+
+# Replace TIAM Baseline scenarios (No_New_Action and Paris_NDCs) with EVO equivalents
+ev_vehicle_stock2 <- ev_vehicle_stock %>%
+  mutate(Paris_NDCs = `Paris NDCs`,
+         No_New_Action = RTS) %>%
+  # Drop EVO scenarios
+  select(-RTS, -`Paris NDCs`, -`2DS`, -B2DS)
+
+# Fill in 2015 - 20 values using EVO Paris values for all scenarios
+ev_vehicle_stock3 <- ev_vehicle_stock2 %>%
+  mutate_at(vars(-one_of("category", "year", "No_New_Action", "Paris_NDCs")),
+            funs(ifelse(year <= 2020, Paris_NDCs, .))) %>%
+  # Replace 2030 delayed action scenario values with Paris NDCs
+  mutate(Late_Action = ifelse(year == 2030, Paris_NDCs, Late_Action)) %>%
+  gather(key = "scenario", value = "stock", -(category:year))
+  
+save_dated(ev_vehicle_stock3, "Cleaned_EV_fleet", folder = "Interim", csv = TRUE)
+
+# Merge EV fleet into overall stock dataset (note that we need EVs from 2015 for the current cleantech markets code)
+# but we only need ICE vehicles from 2020
+vehicle_stock2 <- vehicle_stock %>%
+  filter(category != "EVs") %>%
+  filter(year >= 2020) %>% 
+  bind_rows(ev_vehicle_stock3)
+
+# Save pre-2017 data for binding after ICE value correction below
+vehicle_stock3 <- vehicle_stock2 %>%
+  filter(year < 2020)
+
+# Replace 'Baseline' (EVO) scenario ICE values with Total - EVs - Alternative fuels, and repeat for policy scenarios where values have been replaced
+# all scenarios in 2020, Late-Action scenario in 2030
+vehicle_stock4 <- vehicle_stock2 %>%
+  filter(year >= 2020) %>%
+  group_by(scenario, year) %>%
+  mutate(stock = case_when(category == "ICEs" & scenario %in% c("No_New_Action", "Paris_NDCs") & year >= 2020 | # ICEs baseline scenarios case
+                             category == "ICEs" & year == 2020 | # Climate policy scenarios 2020 values case
+                             category == "ICEs" & year == 2030 & scenario == "Late_Action" ~ # Late Action 2030 values case
+                             stock[[which(category == "Total")]] - stock[[which(category == "EVs")]] - stock[[which(category == "Alternative fuels")]],
+                           TRUE ~ stock)) %>%
   ungroup() %>%
-  # Calculate 2DS quantities using adjustment factors (total and EV first)
-  mutate(`IEA 2DS` = case_when(Type == "Total" ~ `IEA B2DS`,
-                               Type == "EV" ~ `IEA B2DS` * adj_factor_B2DS_to_2DS)) %>%
-  select(-starts_with("adj"), -ends_with("Total"))
+  bind_rows(vehicle_stock3) %>%
+  arrange(scenario, year, category)
 
-# IEA 2DS sales
-iea_2ds_sales <- iea_sales2 %>% 
-  select(Year, Type, `IEA 2DS`) %>%
-  spread(key = "Type", value = "IEA 2DS") %>%
-  mutate(Fossil = Total - EV) %>%
-  gather(key = "Type", value = "IEA 2DS", -Year)
+# Save results, then get rid of non- EV / ICE categories
+save_dated(vehicle_stock4, "Cleaned_vehicle_fleet", folder = "Interim", csv = TRUE)
 
-# Merge together results
-iea_sales3 <- iea_sales2 %>%
-  select(-`IEA 2DS`) %>%
-  left_join(iea_2ds_sales)
-
-iea_ev_sales <- iea_sales3 %>%
-  filter(Type == "EV") %>%
-  select(-Type) %>%
-  gather(key = "scenario", value = "EV_sales", -Year) %>%
-  rename(year = Year)
+vehicle_stock5 <- vehicle_stock4 %>%
+  filter(category %in% c("EVs", "ICEs"))
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 4 - Adjust TIAM EV data for differences against the IEA scenarios (tie results to IEA 2DS scenario)
+##### SECTION 5 - Calculate unsmoothed change in EV and ICE stock in each year ----
 
-# Merge the two datasets together
-tiam_ev_sales2 <- tiam_ev_sales %>%
-  select(scenario, year, EV_new_vehicles) %>%
-  rename(EV_sales = EV_new_vehicles) %>%
-  bind_rows(iea_ev_sales) %>%
-  filter(year %in% c(2015, 2020, 2025, 2030, 2040, 2050)) %>%
-  spread(key = "year", value = "EV_sales")
+new_capacity_calc <- function(new_cap_category) {
+  
+  # Filter based on chosen character
+  temp <- vehicle_stock5 %>%
+    filter(new_cap_category == category)
+  
+  # Extrapolate from 2015 - 2050
+  temp2 <- expand.grid(scenario = unique(vehicle_stock5$scenario),
+                       year = seq(2015, 2050, 1), stringsAsFactors = FALSE) %>%
+    left_join(temp, by = c("scenario", "year")) %>%
+    arrange(scenario, year) %>%
+    fill(category) %>%
+    group_by(scenario) %>%
+    mutate(stock = approx(x = year, y = stock, xout = year)$y) %>%
+    ungroup()
+  
+  # Calculate change in total stock from year-to-year
+  temp3 <- temp2 %>%
+    group_by(scenario) %>%
+    # Add new stock based on change in total capacity
+    mutate(delta_stock = ifelse(stock - lag(stock, n = 1) < 0, 0, stock - lag(stock, n = 1))) %>%
+    # First 11 years get custom replacement capacity - one 11th of 2017 year value
+    mutate(replace_stock = stock / 11) %>%
+    # Sales = delta stock + stock replaced
+    rowwise() %>%
+    mutate(sales = sum(c(delta_stock, replace_stock), na.rm = TRUE)) %>%
+    mutate(sales = ifelse(is.na(delta_stock) & is.na(replace_stock), NA_real_, sales)) %>%
+    ungroup()
+  
+  # Moving average of vehicle sales
+  temp4 <- map(c(1:4),
+               function(x) {temp <- temp3 %>%
+                 group_by(scenario) %>%
+                 mutate(!!rlang::sym(paste0("lag_sales_", x)) := lag(sales, x),
+                                                             !!rlang::sym(paste0("lead_sales_", x)) := lead(sales, x)) %>%
+                 ungroup()}) %>%
+    reduce(left_join)
+  
+  temp5 <- temp4 %>%
+    group_by(year) %>%
+    rowwise() %>%
+    mutate(smooth_sales = case_when(year <= 2020 ~ sales,
+                                    TRUE ~ mean(c(sales, lag_sales_1, lag_sales_2, lag_sales_3, lag_sales_4,
+                                                  lead_sales_1, lead_sales_2, lead_sales_3, lead_sales_4), na.rm = TRUE))) %>%
+    select(scenario, year, category, stock, delta_stock, replace_stock, sales, smooth_sales)
+  
+  # Replace Late_Action smooth sales with Paris_NDCs out to 2030
+  temp6 <- temp5 %>%
+    select(scenario, year, category, smooth_sales) %>%
+    spread(key = scenario, value = smooth_sales) %>% 
+    mutate(Late_Action = ifelse(year <= 2030, Paris_NDCs, Late_Action)) %>%
+    gather(key = "scenario", value = "smooth_sales", -(year:category))
+  
+  temp7 <- temp5 %>%
+    select(scenario, year, category, stock, delta_stock, replace_stock, sales) %>%
+    left_join(temp6)
+  
+  return(temp7)
+}
 
-# Ad hoc changes to ensure data is exactly the same as the old EV scenario data range
-tiam_ev_sales3 <- tiam_ev_sales2 %>%
-  filter(!scenario %in% c("IEA B2DS", "BAU")) %>%
-  arrange(desc(`2015`)) %>%
-  fill(`2015`) %>%
-  gather(key = "year", value = "EV_sales", -scenario) %>%
-  spread(key = "scenario", value = "EV_sales") %>%
-  mutate_at(.vars = vars(`2DS_central`:`B2DS_central`),
-            .funs = funs(approx(x = year, y = ., xout = year)$y)) %>%
-  gather(key = "Scenario", value = "sales", -year) %>%
-  spread(key = "year", value = "sales") %>%
-  mutate(`2020` = ifelse(Scenario == "IEA RTS", `2020`, NA_real_)) %>%
-  arrange(desc(`2020`)) %>%
-  fill(`2020`) %>%
-  gather(key = "year", value = "EV_sales", -Scenario) %>%
-  spread(key = "Scenario", value = "EV_sales") %>%
-  # Store temporary 2DS central old variable
-  mutate(`2DS_central_old` = `2DS_central`) %>%
-  mutate_at(.vars = vars(`2DS_central`:`B2DS_central`),
-            .funs = funs(. * (`IEA 2DS` / `2DS_central_old`))) %>%
-  mutate(`2DS_delay` = case_when(year == 2030 ~ `IEA RTS`,
-                                   year == 2025 ~ NA_real_,
-                                   TRUE ~ `2DS_delay`),
-         `2DS_delay` = approx(x = year, y = `2DS_delay`, xout = year)$y) %>%
-  select(-`2DS_central_old`) %>%
-  gather(key = "Scenario", value = "Sales", -year) %>%
-  spread(key = "year", value = "Sales")
+ice_vehicle_sales <- new_capacity_calc("ICEs")
+ev_sales <- new_capacity_calc("EVs")
 
-save_dated(tiam_ev_sales3, "EV_new_capacity", folder = "Output", csv = TRUE)
+prepare_results <- function(prepare_data) {
+  
+  temp <- prepare_data %>%
+    select(scenario, year, category, sales) %>%
+    spread(key = year, value = sales) %>%
+    filter(!is.na(category)) %>%
+    select(-category)
+  
+  return(temp)
+}
 
-#--------------------------------------------------------------------------------------------------
+ice_results <- prepare_results(ice_vehicle_sales) %>%
+  select(scenario, `2020`, `2025`, `2030`, `2040`, `2050`)
 
-##### SECTION 5 - Find fossil-fired capacity as difference between total vehicle sales (constant across scenarios), and EV sales
+save_dated(ice_results, "ICE_new_capacity", folder = "Output", csv = TRUE)
 
-tiam_fossil_sales <- iea_sales3 %>%
-  filter(Type == "Total") %>%
-  filter(Year %in% c(2015, 2018, 2020, 2025, 2030, 2040, 2050)) %>%
-  select(Year, `IEA RTS`) %>%
-  rename(`IEA RTS_Total` = `IEA RTS`,
-         year = Year)
+ev_results <- prepare_results(ev_sales) %>%
+  select(scenario, `2015`, `2020`, `2025`, `2030`, `2040`, `2050`)
 
-tiam_ev_sales4 <- tiam_ev_sales3 %>%
-  gather(key = "year", value = "sales", -Scenario) %>%
-  spread(key = "Scenario", value = "sales") %>%
-  mutate(year = as.numeric(year))
-
-tiam_fossil_sales2 <- tiam_fossil_sales %>%
-  left_join(tiam_ev_sales4) %>%
-  select(-`IEA 2DS`) %>%
-  mutate_at(.vars = vars(`2DS_central`:`IEA RTS`),
-            .funs = funs(`IEA RTS_Total` - .)) %>%
-  mutate_at(.vars = vars(`2DS_central`:`IEA RTS`),
-            .funs = funs(approx(x = year, y = ., xout = year)$y)) %>%
-  mutate(`2DS_cheap_eff` = ifelse(year >= 2025, `2DS_central`, `2DS_cheap_eff`)) %>%
-  select(-`IEA RTS_Total`) %>%
-  gather(key = "Scenario", value = "sales", -year) %>%
-  spread(key = "year", value = "sales")
-
-tiam_fossil_sales3 <- tiam_fossil_sales2 %>%
-  rename(`IEA / TIAM Scenario` = Scenario) %>%
-  mutate(scenario = case_when(`IEA / TIAM Scenario` == "IEA RTS" ~ "BAU",
-                               `IEA / TIAM Scenario` == "2DS high renewables" ~ "2DS_cheap_ren",
-                               `IEA / TIAM Scenario` == "2DS high CCS" ~ "2DS_cheap_ccs",
-                               `IEA / TIAM Scenario` == "2DS high efficiency" ~ "2DS_cheap_eff",
-                               `IEA / TIAM Scenario` == "2DS central" ~ "2DS_central",
-                               `IEA / TIAM Scenario` == "2DS delayed" ~ "2DS_delay",
-                               `IEA / TIAM Scenario` == "B2DS central" ~ "B2DS_central")) %>%
-  select(`IEA / TIAM Scenario`, scenario, everything())
-
-save_dated(tiam_fossil_sales3, "ICE_new_capacity", folder = "Output", csv = TRUE)
+save_dated(ev_results, "EV_new_capacity", folder = "Output", csv = TRUE)

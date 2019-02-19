@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  30/01/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel / Mark Westcott
 ##### Description:        This script sets out useful functions and file paths called by other scripts within the data cleaning folder
 ##### Dependencies:       N/A
@@ -17,6 +17,8 @@ library(themeVE)
 library(ggrepel)
 library(digest)
 library(purrr)
+library(zoo)
+library(TTR)
 
 # These functions save base, and dated files in the Interim or Outputs folder for later use
 save_dated <- function(data, filename = NULL, folder = NULL, dated = TRUE, csv = FALSE) {
