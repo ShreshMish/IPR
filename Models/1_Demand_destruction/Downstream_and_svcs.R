@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  15/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script imports outputs from company-level demand destruction modelling for use in sector-level
 #####                     fossil fuel value chain value impairment estimation (downstream sectors, oil & gas services etc.)
@@ -58,7 +58,7 @@ revenue_impact2 <- revenue_impact %>%
 # Calculate percentage impact at the firm level
 revenue_impact3 <- revenue_impact2 %>%
   group_by(product) %>%
-  mutate(profit_impact_pct = revenue_g_npv / revenue_g_npv[[which(scenario == "BAU")]] - 1)
+  mutate(profit_impact_pct = revenue_g_npv / revenue_g_npv[[which(scenario == "Paris_NDCs")]] - 1)
 
 # Add % impact for 'All' (oil & gas combined)
 revenue_impact4 <- expand.grid(scenario = unique(revenue_impact3$scenario),
@@ -69,7 +69,7 @@ revenue_impact4 <- expand.grid(scenario = unique(revenue_impact3$scenario),
                                    TRUE ~ sum(revenue_g_npv, na.rm = TRUE))) %>%
   group_by(product) %>%
   mutate(profit_impact_pct = case_when(product %in% c("Liquid", "Gas") ~ profit_impact_pct,
-                                       TRUE ~ revenue_g_npv / revenue_g_npv[[which(scenario == "BAU")]] - 1)) %>%
+                                       TRUE ~ revenue_g_npv / revenue_g_npv[[which(scenario == "Paris_NDCs")]] - 1)) %>%
   ungroup()
 
 save_dated(revenue_impact4, "Oil_and_gas_dd_downstream_qimpacts", folder = "Output", csv = TRUE)
