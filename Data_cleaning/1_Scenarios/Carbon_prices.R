@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  18/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM carbon price data from Excel and cleans it for use in later calculations and modelling
 ##### Dependencies:       1.  Latest Imperial TIAM scenarios Excel file
@@ -23,7 +23,7 @@ tiam_scenario_names <- read_excel(input_source("Vivid_scenario_names.xlsx"),
 
 # Read in sectoral effective carbon price data
 sectoral_effective_co2_prices <- read_excel(input_source("Effective_carbon_price_weights.xlsx"),
-                                            sheet = "W2. CO2 price by sector", range = "$A$47:$D$53")
+                                            sheet = "W2. CO2 price by sector", range = "$A$57:$E$63")
 
 # Read in regional effective carbon price data
 regional_effective_co2_prices <- read_excel(input_source("Effective_carbon_price_weights.xlsx"),
@@ -37,7 +37,7 @@ cpi_inflation_rates <- read_excel(input_source("CPI_inflation.xlsx"),
 
 ##### SECTION 2 - Clean, reshape and interpolate carbon price data (2016-50) ----
 
-# Merge in report scneario names and bin unrequired scenarios
+# Merge in report scenario names and bin unrequired scenarios
 tiam_scenario_names2 <- tiam_scenario_names %>%
   rename(old_scenario_name = `Scenario name`,
          scenario = `Report name`) %>%
@@ -48,6 +48,7 @@ co2_prices <- tiam_co2_prices %>%
          region = `Region\\Period`) %>%
   left_join(tiam_scenario_names2, by = "old_scenario_name") %>%
   filter(!is.na(scenario)) %>%
+  filter(region != "GBL") %>% #Exclude Great Britain and Ireland from average carbon price calculations [values often anomalous]
   select(scenario, region, `2020`:`2100`)
 
 # Gather yearly observations
@@ -105,22 +106,17 @@ co2_prices5 <- co2_prices4 %>%
   mutate(co2_price = co2_price - co2_price[[which(scenario == "No_New_Action")]])
 
 # Save wide data
-co2_prices_wide <- co2_prices4 %>%
+co2_prices_wide <- co2_prices5 %>%
   spread(key = year, value = co2_price) %>%
   arrange(`2020`, desc(scenario))
 
 save_dated(co2_prices_wide, "co2_prices_2016USD_cleaned", folder = "Interim", csv = TRUE)
 
 # Create scenario merge variable for 2DS_regional scenario
-co2_prices5 <- co2_prices4 %>%
+co2_prices6 <- co2_prices5 %>%
   rename(co2_price_merge = scenario)
 
 #--------------------------------------------------------------------------------------------------
-
-
-######################## BREAK
-##### DISCREPANCY AGAINST 2020 VALUES IN PARIS NDCS - WHY DO OTHER SCENARIOS NOT MATCH THIIS VALUE - DEAL WITH GBL ISSUE AS IN THE SPREADSHEET
-
 
 ##### SECTION 4 - Calculate regional and sectoral convergence factors for carbon prices ----
 
@@ -135,35 +131,39 @@ regional_effective_co2_prices2 <- regional_effective_co2_prices %>%
 sectoral_effective_co2_prices2 <- sectoral_effective_co2_prices %>%
   rename(sector = Sector,
          ratio_full_sectors = `Ratio all sector variation`,
-         ratio_nonroad_sectors = `Ratio all except road transport variation`) %>%
-  select(sector, ratio_full_sectors, ratio_nonroad_sectors)
+         ratio_road_sectors = `Ratio all except road transport variation`,
+         ratio_no_sectors = `Ratio no sector variation`,
+         ratio_woroad_sectors = `Ratio exclude road`) %>%
+  select(sector, ratio_full_sectors, ratio_road_sectors, ratio_no_sectors, ratio_woroad_sectors)
 
 # Create grid of factors for all combinations of region and sector variable choices
 sector_region_factors <- expand.grid(region = unique(regional_effective_co2_prices2$region),
-                                     sector = unique(sectoral_effective_co2_prices2$sector)) %>%
+                                     sector = unique(sectoral_effective_co2_prices2$sector), stringsAsFactors = FALSE) %>%
   # Join in the datasets
-  left_join(regional_effective_co2_prices2) %>%
-  left_join(sectoral_effective_co2_prices2) %>%
+  left_join(regional_effective_co2_prices2, by = "region") %>%
+  left_join(sectoral_effective_co2_prices2, by = "sector") %>%
   # Add dummy variables for region and sector
-  mutate(no_regions = 1,
-         no_sectors = 1) %>%
+  mutate(no_regions = 1) %>%
   # Rename variables and construct combinations
   rename_at(.vars = vars(contains("ratio")),
             .funs = funs(gsub("ratio_", "", .))) %>%
   # Create combinations
   mutate(full_reg_full_sect = full_regions * full_sectors,
-         full_reg_nonrd_sect = full_regions * nonroad_sectors,
+         full_reg_road_sect = full_regions * road_sectors,
          full_reg_no_sect = full_regions * no_sectors,
+         full_reg_woroad_sect = full_regions * woroad_sectors,
          dev_undev_reg_full_sect = dev_undev_regions * full_sectors,
-         dev_undev_reg_nonrd_sect = dev_undev_regions * nonroad_sectors,
+         dev_undev_reg_road_sect = dev_undev_regions * road_sectors,
          dev_undev_reg_no_sect = dev_undev_regions * no_sectors,
+         dev_undev_reg_woroad_sect = dev_undev_regions * woroad_sectors,
          no_reg_full_sect = no_regions * full_sectors,
-         no_reg_nonrd_sect = no_regions * nonroad_sectors,
-         no_reg_no_sect = no_regions * no_sectors)
+         no_reg_road_sect = no_regions * road_sectors,
+         no_reg_no_sect = no_regions * no_sectors,
+         no_reg_woroad_sect = no_regions * woroad_sectors)
 
 sector_region_co2_price_weights <- expand.grid(region = unique(regional_effective_co2_prices2$region),
                                                sector = unique(sectoral_effective_co2_prices2$sector),
-                                               year = seq(2020, 2100, by = 1))
+                                               year = seq(2020, 2100, by = 1), stringsAsFactors = FALSE)
 
 # Define function for mapping convergence between regional, sectoral carbon prices based on input year
 # NB names must match substrings defined in combinations section above, and year must be below 2100
@@ -171,14 +171,15 @@ sector_region_convergence <- function(initial_regional_variation = NULL, initial
                                       final_regional_variation = NULL, final_sectoral_variation = NULL, 
                                       convergence_year = NULL) {
   
-  initial_variable <- quote(paste0(initial_regional_variation, "_", initial_sectoral_variation))
-  final_variable <- quote(paste0(final_regional_variation, "_", final_sectoral_variation))
+  initial_variable <- rlang::sym(paste0(initial_regional_variation, "_", initial_sectoral_variation))
+  final_variable <- rlang::sym(paste0(final_regional_variation, "_", final_sectoral_variation))
   
   # Select just the chosen variables
   sector_region_factors2 <- sector_region_factors %>%
-    select(region, sector, eval(initial_variable), eval(final_variable)) %>%
-    rename(co2_price_initial_weight = eval(initial_variable),
-           co2_price_final_weight = eval(final_variable))
+    select(region, sector, !!(initial_variable), !!(final_variable)) %>%
+    mutate(co2_price_initial_weight = !!(initial_variable),
+           co2_price_final_weight = !!(final_variable)) %>%
+    select(region, sector, co2_price_initial_weight, co2_price_final_weight)
   
   # Merge into convergence factors dataset and define co2_price_Weight variable
   sector_region_convergence_factors <- sector_region_co2_price_weights %>%
@@ -198,16 +199,16 @@ sector_region_convergence <- function(initial_regional_variation = NULL, initial
 
 # Regional scenario weights - add variable representing merge scenario variable
 regional_scenario_weights <- sector_region_convergence(initial_regional_variation = "full_reg",
-                                                       initial_sectoral_variation = "full_sect",
+                                                       initial_sectoral_variation = "no_sect",
                                                        final_regional_variation = "no_reg",
-                                                       final_sectoral_variation = "nonrd_sect",
+                                                       final_sectoral_variation = "no_sect",
                                                        convergence_year = 2055) %>%
-  mutate(scenario_merge = "2DS_regional")
+  mutate(scenario_merge = "Lack_Of_Coordination")
 
 all_other_scenario_weights <- sector_region_convergence(initial_regional_variation = "no_reg",
-                                                        initial_sectoral_variation = "full_sect",
+                                                        initial_sectoral_variation = "no_sect",
                                                         final_regional_variation = "no_reg",
-                                                        final_sectoral_variation = "nonrd_sect",
+                                                        final_sectoral_variation = "no_sect",
                                                         convergence_year = 2055) %>%
   mutate(scenario_merge = "Other_scenarios")
 
@@ -217,7 +218,7 @@ scenario_weights <- all_other_scenario_weights %>%
 save_dated(scenario_weights, "Sector_region_co2_price_weights", folder = "Interim", csv = TRUE)
 
 # Merge in to produce final carbon price dataset
-sector_region_co2_prices <- expand.grid(scenario = c(unique(co2_prices10$co2_price_merge), "2DS_regional"),
+sector_region_co2_prices <- expand.grid(scenario = c(unique(co2_prices6$co2_price_merge), "Lack_Of_Coordination"),
                                         region = unique(regional_effective_co2_prices2$region),
                                         sector = unique(sectoral_effective_co2_prices2$sector),
                                         year = seq(2016, 2100, by = 1)) %>%
@@ -225,13 +226,14 @@ sector_region_co2_prices <- expand.grid(scenario = c(unique(co2_prices10$co2_pri
   mutate(scenario = as.character(scenario),
          region = as.character(region),
          sector = as.character(sector),
-         co2_price_merge = ifelse(scenario == "2DS_regional", "2DS_central", scenario)) %>%
-  left_join(co2_prices10) %>%
-  mutate(scenario_merge = case_when(scenario == "2DS_regional" ~ "2DS_regional",
+         co2_price_merge = ifelse(scenario == "Lack_Of_Coordination", "2DS_Balanced_Transformation", scenario)) %>%
+  left_join(co2_prices6) %>%
+  mutate(scenario_merge = case_when(scenario == "Lack_Of_Coordination" ~ "Lack_Of_Coordination",
                                     TRUE ~ "Other_scenarios")) %>%
   left_join(scenario_weights) %>%
   mutate(co2_price = co2_price * co2_price_weight) %>%
   select(scenario, region, sector, year, co2_price) %>%
+  filter(sector != "Road") %>%
   filter(year <= 2050)
 
 # Add 2016 variable to match previous dataset and complete interpolation
