@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  14/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Justine Schafer
 ##### Edited by:          Shyamal Patel
 ##### Description:        This script uses cleaned patent and revenue data for Vivid categories to project future 
@@ -80,34 +80,24 @@ save_dated(category_mapping, "Cleantech_product_categories", "Interim", csv = TR
 
 # Renewables
 renew_scenario_data2 <- renew_scenario_data %>%
-  rename(scenario = Scenario,
-         scenario_product = Fuel) %>%
-  select(-`Source / status`, -Units) %>%
-  # Using WEO BAU instead of TIAM BAU
-  filter(scenario != "BAU") %>%
-  mutate(scenario = ifelse(scenario == "WEO BAU", "BAU", scenario)) %>%
+  rename(scenario_product = category) %>%
   # Merge in matched categories from above
   left_join(category_mapping, by = "scenario_product") %>%
   select(-scenario_product) %>%
   # Keep only modelled VE categories
   filter(!is.na(ve_category)) %>%
-  gather(key = year, value = "stock", (`2005`:`2050`))
+  gather(key = year, value = "stock", (`2017`:`2050`))
 
 # Electric vehicles
 EV_scenario_data2 <- EV_scenario_data %>%
-  rename(scenario = Scenario) %>%
-  filter(scenario != "IEA 2DS") %>%
   mutate(scenario_product = "EV_aggregate") %>%
   left_join(category_mapping, by = "scenario_product") %>%
   select(-scenario_product) %>%
-  mutate(scenario = ifelse(scenario == "IEA RTS", "BAU", scenario)) %>%
   gather(key = year, value = stock, (`2015`:`2050`)) %>%
   # Drop 2025 values to match old code
   mutate(stock = case_when(year == 2025 ~ NA_real_,
-                           TRUE ~ stock)) %>%
-  # DANGER - CHANGE THIS FOR NEXT SET OF SCENARIOS
-  mutate(scenario = ifelse(scenario == "B2DS_central", "Paris_INDCs", scenario))
-
+                           TRUE ~ stock))
+  
 # Biofuels
 biofuel_scenario_data2 <- biofuel_scenario_data %>%
   rename(scenario = Scenario) %>%
@@ -319,8 +309,8 @@ company_npv_results <- company_results %>%
   summarise(profit = sum(weight * npv_profit, na.rm = TRUE),
             constant_share_profit = sum(weight * npv_constant_share_profit)) %>%
   group_by(company_id, company, ve_category) %>%
-  mutate(profit_impact_pct = profit / profit[[which(scenario == "BAU")]] - 1,
-         marketgrowth_impact_pct = constant_share_profit / constant_share_profit[[which(scenario == "BAU")]] - 1,
+  mutate(profit_impact_pct = profit / profit[[which(scenario == "Paris_NDCs")]] - 1,
+         marketgrowth_impact_pct = constant_share_profit / constant_share_profit[[which(scenario == "Paris_NDCs")]] - 1,
          marketshare_impact_pct = profit_impact_pct - marketgrowth_impact_pct) %>%
   ungroup() %>%
   select(-constant_share_profit)
