@@ -231,9 +231,14 @@ plot_fuel_sales <- function(plot_fuel) {
   windows()
   ggplot(ren_capa6 %>% filter(category == plot_fuel) %>%
            gather(key = year, value = capacity, -(scenario:category)) %>%
-           mutate(year = as.numeric(year))) +
-    geom_line(aes(x = year, y = capacity, colour = scenario)) +
+           mutate(year = as.numeric(year)) %>%
+           rename(capacity_sales = capacity)) +
+    geom_line(aes(x = year, y = capacity_sales, colour = scenario)) +
     theme_vivid() +
     scale_colour_vivid_house2()
 
 }
+
+plot_fuel_sales("Solar")
+plot_fuel_sales("Wind")
+plot_fuel_sales("Hydro")
