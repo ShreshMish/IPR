@@ -17,7 +17,7 @@ source("utils.R")
 tiam_co2_prices <- read_excel(input_source("Vivid_20190208.xlsx"),
                               sheet = "AA_CarbonPrice", skip = 6)
 
-# Readin TIAM scenario names
+# Read in TIAM scenario names
 tiam_scenario_names <- read_excel(input_source("Vivid_scenario_names.xlsx"),
                                   sheet = "R1. Scenario specifications", range = "$A$10:$D$59")
 
