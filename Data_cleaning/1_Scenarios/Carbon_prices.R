@@ -1,13 +1,9 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/01/2019
+##### Date of last edit:  18/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM carbon price data from Excel and cleans it for use in later calculations and modelling
 ##### Dependencies:       1.  Latest Imperial TIAM scenarios Excel file
 #####                     2.  CPI inflation rates
-#####                     (current scenario data = "Input/Vivid_scenario_runs.xls" & "Input/Vivid_scenario_runs_newdb.xls" (for Weak 2020))
-
-##### TIAM has been updated with new technology costs and constraint changes, which is causing discrepancies between the same 
-##### scenario run in different versions - adjust 'weak 2020' scenario from new database to compensate for this
 
 #--------------------------------------------------------------------------------------------------
 
@@ -18,12 +14,12 @@ main_save_folder <- "1_Scenarios"
 source("utils.R")
 
 # Read in TIAM scenario data from old scenarios (skip 6 empty rows at the top of the sheet)
-tiam_co2_prices <- read_excel(input_source("Vivid_scenario_runs.xls"),
+tiam_co2_prices <- read_excel(input_source("Vivid_20190208.xlsx"),
                               sheet = "AA_CarbonPrice", skip = 6)
 
-# Read in TIAM scenario data for weak 2020 scenario (skip 6 empty rows at the top of the sheet)
-tiam_w2020_co2_prices <- read_excel(input_source("Vivid_scenario_runs_newdb.xls"),
-                                    sheet = "AA_CarbonPrice", skip = 6)
+# Readin TIAM scenario names
+tiam_scenario_names <- read_excel(input_source("Vivid_scenario_names.xlsx"),
+                                  sheet = "R1. Scenario specifications", range = "$A$10:$D$59")
 
 # Read in sectoral effective carbon price data
 sectoral_effective_co2_prices <- read_excel(input_source("Effective_carbon_price_weights.xlsx"),
@@ -37,60 +33,41 @@ regional_effective_co2_prices <- read_excel(input_source("Effective_carbon_price
 cpi_inflation_rates <- read_excel(input_source("CPI_inflation.xlsx"),
                                   sheet = "R1. US CPI inflation", skip = 7)
 
-# Define scenario name mapping between current TIAM scenarios, and model names
-scenario_names <- tribble(~scenario, ~model_scenario,
-                          "s06a_BHP_cum2dt_Highfeasibility",      "2DS_central",
-                          "s02_BHP_cum2dt_highREN_EV",            "2DS_cheap_ren",
-                          "s03_BHP_cum2dt_highCCS_EV",            "2DS_cheap_ccs",
-                          "s04_BHP_cum2dt_lowDEM_EV",             "2DS_cheap_eff",
-                          "s06c_BHP_cum2dt_hf120v2_delayed2030",  "2DS_delay",
-                          "s01a_BHP_base",                        "BAU",
-                          "s01a_BHP_base_12P2",                   "BAU_newDB",
-                          "s01b_BHP_weak2020_12P2",               "Paris_INDCs",
-                          "s06a_BHP_cum2dt_Highfeasibility_12P2", "2DS_central_newDB",
-                          "N/A",                                  "2DS_regional")
-
-# Save scenario names
-save_dated(scenario_names, "Scenario_name_mapping", folder = "Interim", csv = TRUE)
-
 #--------------------------------------------------------------------------------------------------
 
 ##### SECTION 2 - Clean, reshape and interpolate carbon price data (2016-50) ----
 
-# Gather yearly observations
+# Merge in report scneario names and bin unrequired scenarios
+tiam_scenario_names2 <- tiam_scenario_names %>%
+  rename(old_scenario_name = `Scenario name`,
+         scenario = `Report name`) %>%
+  select(old_scenario_name, scenario)
+
 co2_prices <- tiam_co2_prices %>%
-  gather(key = "year", value = "co2_price", `2020`:`2100`) %>%
-  rename(scenario = Scenario,
+  rename(old_scenario_name = Scenario,
          region = `Region\\Period`) %>%
-  mutate(year = as.numeric(year))
+  left_join(tiam_scenario_names2, by = "old_scenario_name") %>%
+  filter(!is.na(scenario)) %>%
+  select(scenario, region, `2020`:`2100`)
 
-# Remove surplus scenarios
+# Gather yearly observations
 co2_prices2 <- co2_prices %>%
-  filter(!scenario %in% c("s06a_BHP_cum3dt_Highfeasibility", "s06a_BHP_cum4dt_Highfeasibility", "s06a_BHP_cumb2c300_Highfeasibility"))
-
-# Repeat for TIAM weak 2020 scenario data
-tiam_w2020_co2_prices2 <- tiam_w2020_co2_prices %>%
   gather(key = "year", value = "co2_price", `2020`:`2100`) %>%
-  rename(scenario = Scenario,
-         region = `Region\\Period`) %>%
-  mutate(year = as.numeric(year))
+  mutate(year = as.numeric(year)) %>%
+  filter(year <= 2060)
 
-# For TIAM weak, keep "P2" scenarios (2020 start), and keep 2dt high feasibility for comparability
-tiam_w2020_co2_prices3 <- tiam_w2020_co2_prices2 %>%
-  filter(!scenario %in% c("s01b_BHP_weak2020", "s06a_BHP_cum2dt_Highfeasibility"))
+save_dated(co2_prices2, "co2_prices_2005USD_raw", folder = "Interim", csv = TRUE)
 
-# Join together TIAM datasets
-co2_prices3 <- co2_prices2 %<>%
-  bind_rows(tiam_w2020_co2_prices3)
-
-save_dated(co2_prices3, "co2_prices_2005USD", folder = "Interim", csv = TRUE)
-
+#### UPDATE TO MATCH LATEST CODE
 # Replace 2020 values with 0 if unavailable (consistent with Excel approach) and replace values with 2005US$/tCO2 (instead of negative 2005US$/ktCO2)
-co2_prices4 <- co2_prices3 %>%
+co2_prices3 <- co2_prices2 %>%
   mutate(co2_price = case_when(year == 2020 & is.na(co2_price) ~ 0,
                                TRUE ~ co2_price)) %>%
   # Adjust units from negative dollar
-  mutate(co2_price = co2_price * (-1000))
+  mutate(co2_price = co2_price * (-1000)) %>%
+  # Fill in No_New_Action value carbon prices with 0 when not available
+  mutate(co2_price = case_when(scenario == "No_New_Action" & is.na(co2_price) ~ 0,
+                               TRUE ~ co2_price))
 
 # Find inflation adjustment for 2005US$ -> 2016US$
 cpi_inflation_rates2 <- cpi_inflation_rates %>%
@@ -110,7 +87,7 @@ cpi_inflation_rates2 <- cpi_inflation_rates %>%
 us_2005_to_2016_cpi <- cpi_inflation_rates2$cum_cpi_rate[cpi_inflation_rates2$year == 2016]
 
 # Find average across all regions, and adjust all values from 2005US$ to 2016US$
-co2_prices5 <- co2_prices4 %>%
+co2_prices4 <- co2_prices3 %>%
   group_by(scenario, year) %>%
   # Summarise over regions
   summarise(co2_price = mean(co2_price, na.rm = TRUE)) %>%
@@ -118,59 +95,32 @@ co2_prices5 <- co2_prices4 %>%
   mutate(co2_price = co2_price * us_2005_to_2016_cpi) %>%
   ungroup()
 
-save_dated(co2_prices5, "co2_prices_2016USD", folder = "Interim", csv = TRUE)
-
-# Rename scenarios based on model names
-co2_prices6 <- co2_prices5 %>%
-  left_join(scenario_names) %>%
-  select(model_scenario, year, co2_price) %>%
-  rename(scenario = model_scenario)
-
 #--------------------------------------------------------------------------------------------------
 
 ##### SECTION 3 - Ad hoc changes to carbon price data - please check when updating scenario inputs ----
 
-# Put scenarios in columns before further data cleaning
-co2_prices7 <- co2_prices6 %>%
-  spread(key = scenario, value = co2_price)
-
-# Adjust Paris_INDCs scenario by ratio of 2DS_central to 2DS_central_newDB
-# Value in 2020 should be equal to other scenarios (which follow the oldDB Weak 2020 to 2020)
-co2_prices8 <- co2_prices7 %>%
-  mutate(Paris_INDCs = case_when(year == 2020 ~ `2DS_central`,
-                                 year != 2020 ~ Paris_INDCs * (`2DS_central` / `2DS_central_newDB`))) %>%
-  # Drop new database 2DS scenario now
-  select(-`2DS_central_newDB`) %>%
-  # Hold Weak_2020 constant after 2030
-  mutate(Paris_INDCs_2030_value = mean(ifelse(year == 2030, Paris_INDCs, NA_real_), na.rm = TRUE),
-         Paris_INDCs = case_when(year >= 2040 ~ Paris_INDCs_2030_value,
-                                 TRUE ~ Paris_INDCs)) %>%
-  select(-Paris_INDCs_2030_value)
-
-# Replace 2DS delay scenario carbon prices with 0 up to 2030
-# NB - this should really be weak 2020 until 2030
-co2_prices9 <- co2_prices8 %>%
-  mutate(`2DS_delay` = case_when(year <= 2030 ~ 0,
-                                 TRUE ~ `2DS_delay`)) %>%
-  filter(year != 2025) %>%
-  # Add in BAU
-  mutate(BAU = 0) %>%
-  # Gather data again
-  gather(key = scenario, value = co2_price, -year) %>%
-  select(scenario, year, co2_price)
+# Difference all scenario against 'No_New_Action' so prices are 0 in this scenario and 'relative to BAU' in all other scenarios
+co2_prices5 <- co2_prices4 %>% 
+  group_by(year) %>%
+  mutate(co2_price = co2_price - co2_price[[which(scenario == "No_New_Action")]])
 
 # Save wide data
-co2_prices_wide <- co2_prices9 %>%
+co2_prices_wide <- co2_prices4 %>%
   spread(key = year, value = co2_price) %>%
   arrange(`2020`, desc(scenario))
 
 save_dated(co2_prices_wide, "co2_prices_2016USD_cleaned", folder = "Interim", csv = TRUE)
 
 # Create scenario merge variable for 2DS_regional scenario
-co2_prices10 <- co2_prices9 %>%
+co2_prices5 <- co2_prices4 %>%
   rename(co2_price_merge = scenario)
 
 #--------------------------------------------------------------------------------------------------
+
+
+######################## BREAK
+##### DISCREPANCY AGAINST 2020 VALUES IN PARIS NDCS - WHY DO OTHER SCENARIOS NOT MATCH THIIS VALUE - DEAL WITH GBL ISSUE AS IN THE SPREADSHEET
+
 
 ##### SECTION 4 - Calculate regional and sectoral convergence factors for carbon prices ----
 

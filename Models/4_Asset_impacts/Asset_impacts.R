@@ -28,6 +28,13 @@ market_exposure_results <- readRDS(input_source("Revised_product_exposure_result
 # Company subsidiary-level results
 subsidiary_results <- readRDS("3_Cost_and_competition/Output/Subsidiary_results.rds")
 
+# Credit rating rankings
+credit_rating_rankings <- read_excel(input_source("Credit_rating_rankings.xlsx"),
+                                     sheet = "R1. Credit rating rankings", range = "$A$8:$D$25")
+
+# Specify credit ratings provider to use
+creditratings_provider <- "moody"
+
 #--------------------------------------------------------------------------------------------------
 
 ##### SECTION 2 - Clean up company-level modelling results ----
@@ -121,7 +128,16 @@ save_dated(equity_parentmarket_domicile_results, "Equity_pmarket_dom_results", f
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 4 - Calculate fixed income impacts ----
+##### SECTION 4 - Calculate fixed income modelling preliminaries ----
+
+# Map parent markets to fixed income results markets
+parent_market_mapping <- tibble(parent_market = unique(market_exposure_results2$parent_market)) %>%
+  mutate(fi_results_market = case_when(parent_market %in% c("Exploration and production", "Power generation",
+                                                            "Consumer Electronics") ~ parent_market,
+                                       parent_market %in% c("Auto Parts", "Automobiles") ~ "Autos",
+                                       parent_market %in% c("Concrete and cement", "Iron & Steel",
+                                                            "Other Chemicals", "Specialty Chemicals") ~ "Emissions intensive industries",
+                                       TRUE ~ "Other sectors"))
 
 # Merge in company market cap, revenue and profit pre-tax results
 fi_data2 <- fi_data %>%
@@ -135,7 +151,8 @@ fi_data3 <- fi_data2 %>%
   left_join(company_results_for_fi, by = "company_id") %>%
   left_join(market_exposure_results2, by = c("company_id", "company")) %>%
   left_join(equity_data_for_fi, by = c("company_id", "company")) %>%
-  select(scenario, company_id, company, parent_market, fi_instrument_code:moody_rating, company_market_cap,
+  left_join(parent_market_mapping, by = "parent_market") %>% 
+  select(scenario, company_id, company, parent_market, fi_results_market, fi_instrument_code:moody_rating, company_market_cap,
          everything()) %>%
   rename(company_market_cap_2017 = company_market_cap) %>%
   arrange(scenario, company)
@@ -145,31 +162,113 @@ fi_data4 <- fi_data3 %>%
   filter(!(is.na(company_market_cap_2017) | is.na(current_assets_2017) | is.na(current_liabilities_2017) 
            | is.na(retained_earnings_2017) | is.na(total_assets_2017) | is.na(total_liabilities_2017) | is.na(revenue_2017)))
 
-fi_results <- fi_data4 %>%
+# Calculate EBIT uplift factor for estimating EBIT from 'Profit pre tax' - cannot be company-level as EBIT < 0 is possible in 2017
+# Market-level is a compromise
+fi_data5 <- fi_data4 %>%
+  group_by(fi_results_market) %>% 
+  mutate(ebit_uplift = median(ebit_2017 / profit_pre_tax_2017)) %>%
+  ungroup()
+
+ebit_uplift_results <- fi_data5 %>% 
+  select(fi_results_market, parent_market, ebit_uplift) %>% 
+  unique()
+
+# Save EBIT uplift factors for further analysis
+save_dated(ebit_uplift_results, "EBIT_profit_uplift_factors", folder = "Interim", csv = TRUE)
+
+fi_data6 <- fi_data5 %>%
+  group_by(fi_results_market) %>%
+  mutate(mcap_uplift = median(company_market_cap_2017 / ebit_2017)) %>%
+  ungroup() %>%
+  select(scenario:retained_earnings_2017, ebit_uplift, mcap_uplift, everything())
+  
+mcap_uplift_results <- fi_data6 %>%
+  select(fi_results_market, parent_market, mcap_uplift) %>%
+  unique()
+
+# Save Market cap - EBIT uplift factors for further analysis
+save_dated(mcap_uplift_results, "MCap_EBIT_uplift_factors", folder = "Interim", csv = TRUE)
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 5 - Find current Altman Z-scores ----
+
+# Calculate 2017 Altman Z-scores
+fi_data7 <- fi_data6 %>%
   mutate(working_capital_2017 = current_assets_2017 - current_liabilities_2017,
          x1_2017 = working_capital_2017 / total_assets_2017,
          x2_2017 = retained_earnings_2017 / total_assets_2017,
          x3_2017 = ebit_2017 / total_assets_2017,
          x4_2017 = company_market_cap_2017 / total_liabilities_2017,
          x5_2017 = revenue_2017 / total_assets_2017) %>%
-  mutate(altman_z_2017 = 1.2 * x1_2017 + 1.4 * x2_2017 + 3.3 * x3_2017 + 0.6 * x4_2017 + 1 * x5_2017) %>%
-  # Calculate EBIT uplift factor for estimating EBIT from 'Profit pre tax' - cannot be company-level as EBIT < 0 is possible in 2017
-  # Market-level is a compromise
-  group_by(parent_market) %>%
-  mutate(ebit_uplift = mean(ebit_2017 / profit_pre_tax_2017))
+  mutate(altman_z_2017 = 1.2 * x1_2017 + 1.4 * x2_2017 + 3.3 * x3_2017 + 0.6 * x4_2017 + 1 * x5_2017)
 
-# Save EBIT uplift factors for further analysis
-ebit_uplift_results <- fi_results %>% 
-  select(parent_market, ebit_uplift) %>% 
-  unique()
+#--------------------------------------------------------------------------------------------------
 
-save_dated(ebit_uplift_results, "EBIT_profit_uplift_factors", folder = "Interim", csv = TRUE)
+##### SECTION 6 - Mapping between Altman Z-scores and credit ratings (today) ----
+
+# Map credit ratings to Altman Z-scores
+moody_rating_rankings <- credit_rating_rankings %>%
+  select(moody_ranking, moody_rating)
+sp_rating_rankings <- credit_rating_rankings %>%
+  select(sp_ranking, sp_rating)
+
+credit_altman_mapping <- fi_data7 %>%
+  filter(scenario == "BAU") %>%
+  left_join(moody_rating_rankings, by = c("moody_rating")) %>%
+  left_join(sp_rating_rankings, by = c("sp_rating"))
+
+# Calculate MSCI ACWI-level median credit rating by ratings agency ranking
+credit_rating_altman <- function(agency_rating, agency_rating_rankings, agency_ranking,
+                                 agency_formula) {
+  agency_rating <- enquo(agency_rating)
+  agency_ranking <- enquo(agency_ranking)
+  formula <- enexpr(formula)
+  
+  temp <- credit_altman_mapping %>%
+    group_by(!!agency_rating) %>%
+    summarise(altman_z_2017 = median(altman_z_2017, na.rm = TRUE)) %>%
+    ungroup() %>%
+    left_join(agency_rating_rankings) %>%
+    arrange(!!agency_ranking)
+  
+  return(temp)
+}
+
+sp_results <- credit_rating_altman(sp_rating, sp_rating_rankings, sp_ranking) %>%
+  mutate(excluded = ifelse(sp_ranking > 10, "Y", "N"))
+moody_results <- credit_rating_altman(moody_rating, moody_rating_rankings, moody_ranking) %>%
+  mutate(excluded = ifelse(moody_ranking > 10, "Y", "N"))
+
+sp_regression_results <- lm(sp_ranking ~ altman_z_2017, data = subset(sp_results, excluded != "Y"))
+moody_regression_results <- lm(moody_ranking ~ altman_z_2017, data = subset(moody_results, excluded != "Y"))
+  
+ggplot(sp_results) +
+  geom_point(aes(x = altman_z_2017, y = sp_ranking, colour = excluded)) +
+  geom_line(aes(x = altman_z_2017, y = sp_regression_results$coefficients[1] + altman_z_2017 * sp_regression_results$coefficients[2])) +
+  theme_vivid() +
+  scale_colour_manual(values = c("blue", "red"))
+ggsave(paste0("4_Asset_impacts/Interim/SP_rating_regression.png"), width = 16, height = 9, units = "in")
+
+ggplot(moody_results) +
+  geom_point(aes(x = altman_z_2017, y = moody_ranking, colour = excluded)) +
+  geom_line(aes(x = altman_z_2017, y = moody_regression_results$coefficients[1] + altman_z_2017 * moody_regression_results$coefficients[2])) +
+  theme_vivid() +
+  scale_colour_manual(values = c("blue", "red"))
+ggsave(paste0("4_Asset_impacts/Interim/Moody_rating_regression.png"), width = 16, height = 9, units = "in")
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 6 - Calculate fixed income impacts ----
+
+fi_results <- fi_data7
 
 # This is a hack, but I'm too tired to find a better way
 for(i in seq(2018, 2050, 1)) {
 
   # Only X3 (EBIT) and X4 (company market cap) are time varying elements of the Z-score
-  suffix_variables_yr <- c("ebit_", "profit_pre_tax_", "revenue_", "x3_", "x4_", "altman_z_")
+  suffix_variables_yr <- c("ebit_", "profit_pre_tax_", "mcap_ebit_uplift_", "revenue_", "x3_", "x4_", "x4_alt_",
+                           "altman_z_", "altman_z_alt_")
   for (var in suffix_variables_yr) {
     assign(paste0(var, "yr"), rlang::sym(paste0(var, i)))
   }
@@ -178,33 +277,174 @@ for(i in seq(2018, 2050, 1)) {
     mutate(!!ebit_yr := !!profit_pre_tax_yr * ebit_uplift,
            # Noting that revenue_yr * x5_2017 = assets_yr assuming constant 'asset intensity'
            !!x3_yr := !!ebit_yr / !!revenue_yr * x5_2017,
-           # Noting use of capped profit [this term is constant over time]
-           !!x4_yr := profit_npv_total_cap / total_liabilities_2017) %>%
-    mutate(!!altman_z_yr := 1.2 * x1_2017 + 1.4 * x2_2017 + 3.3 * !!x3_yr + 0.6 * !!x4_yr + 1 * x5_2017)
+           # Noting use of MCAP uplifted EBIT instead of market cap
+           !!mcap_ebit_uplift_yr := !!ebit_yr * mcap_uplift,
+           !!x4_yr := !!mcap_ebit_uplift_yr / total_liabilities_2017,
+           # Alternative approach to x4: company_market_cap instead of MCAP uplifted EBIT
+           !!x4_alt_yr := profit_npv_total_cap / total_liabilities_2017) %>%
+    mutate(!!altman_z_yr := 1.2 * x1_2017 + 1.4 * x2_2017 + 3.3 * !!x3_yr + 0.6 * !!x4_yr + 1 * x5_2017,
+           !!altman_z_alt_yr := 1.2 * x1_2017 + 1.4 * x2_2017 + 3.3 * !!x3_yr + 0.6 * !!x4_alt_yr + 1 * x5_2017)
     
 }
 
 fi_results2 <- fi_results %>%
-  select(scenario, company_id, company, parent_market:moody_rating, starts_with("altman_z_"),
-         net_income_2017, ebit_uplift, current_liabilities_2017, current_assets_2017,
+  select(scenario, company_id, company, parent_market:moody_rating, starts_with("altman_z_2"), altman_z_alt_2018,
+         net_income_2017, ebit_uplift, mcap_uplift, current_liabilities_2017, current_assets_2017,
          total_liabilities_2017, total_assets_2017, retained_earnings_2017, profit_npv_total, profit_npv_total_cap,
-         starts_with("ebit_"), starts_with("revenue_"))
+         starts_with("ebit_"), starts_with("revenue_"), starts_with("mcap_ebit_uplift_"), starts_with("altman_z_alt_"))
 
-# Summarise over chosen variable(s) - note that this is based on equity market caps, rather than company market caps so there is no double counting
-summarise_fi <- function(...) {
+save_dated(fi_results2, "FI_altman_z_results", folder = "Interim", csv = FALSE)
+
+# Shorten dataset before credit rating calculations
+fi_results3 <- fi_results2 %>%
+  select(scenario, company_id:moody_rating, starts_with("altman_z_2"), starts_with("altman_z_alt_"))
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 7 - Calculate credit rating change impacts ----
+
+if(!(creditratings_provider %in% c("moody", "sp"))) {stop("Credit ratings provider incorrectly specified")}
+
+# Note that sectors which are exposed to DD / CM models will have credit rating differences in 2017
+# as the NPV impact from the DD / CM models are applied from 2017 onwards
+fi_results4 <- fi_results3 %>%
+  mutate_at(vars(starts_with("altman_z_2"), starts_with("altman_z_alt")),
+            funs(credit_rating = ifelse(rep(creditratings_provider == "moody", n()),
+                                        moody_regression_results$coefficients[1] + moody_regression_results$coefficients[2] * .,
+                                        ifelse(rep(creditratings_provider == "sp", n()),
+                                               sp_regression_results$coefficients[1] + sp_regression_results$coefficients[2] * .,
+                                               NA_real_)))) %>%
+  rename_at(vars(ends_with("credit_rating")),
+            funs(paste0(ifelse(grepl("alt_", .), "credit_rating_alt_", "credit_rating_"),
+                        stri_extract_all_regex(., "[0-9]+")))) %>%
+  group_by(fi_instrument_code, fi_isin_code) %>%
+  mutate_at(vars(starts_with("credit_rating_")),
+            funs(change = . - .[[which(scenario == "BAU")]])) %>%
+  rename_at(vars(ends_with("_change")),
+            funs(paste0(ifelse(grepl("alt_", .), "credit_rating_change_alt_", "credit_rating_change_"),
+                        stri_extract_all_regex(., "[0-9]+")))) %>%
+  ungroup()
+
+# Note that NA in credit rating / credit rating change fields means that the company has dropped out of the CC model at this time
+save_dated(fi_results4, "FI_credit_rating_results", folder = "Interim", csv = FALSE)
+
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 8 - Aggregate credit rating changes over chosen market categories ----
+
+# Remove redundant variables
+fi_results5 <- fi_results4 %>%
+  select(scenario:moody_rating, contains("credit_rating_"))
+
+# Replace NA values in credit ratings with 100 [high rankings are bad in credit ratings]
+# Replace NA values in credit rating changes with 100 [high values are bad in credit rating changes]
+fi_results6 <- fi_results5 %>%
+  mutate_at(vars(contains("credit_rating_2"), contains("credit_rating_alt_")),
+            funs(ifelse(is.na(.), 100, .))) %>%
+  mutate_at(vars(contains("credit_rating_change_")),
+            funs(ifelse(is.na(.), 100, .)))
+
+# Summarise over chosen variable(s) - taking 10th, 50th and 90th percentiles
+summarise_quantiles <- function(summarise_var, summarise_start_yr) {
   
-  summarise_vars <- enquos(...)
+  summarise_var_yr_first <- rlang::sym(paste0(summarise_var, "_", summarise_start_yr))
+  summarise_var_yr_last <- rlang::sym(paste0(summarise_var, "_2050"))
   
-  temp <- fi_results2 %>%
-    group_by(scenario, !!!summarise_vars) %>%
-    summarise_at(vars(altman_z_2017:revenue_2050), funs(median(., na.rm = TRUE))) %>%
+  temp <- fi_results6 %>%
+    select(scenario:moody_rating, (!!summarise_var_yr_first):(!!summarise_var_yr_last)) %>%
+    gather(key = "year", value = "value", (!!summarise_var_yr_first):(!!summarise_var_yr_last)) %>%
+    mutate(category = substring(year, first = 1, last = stri_locate_first_regex(year, "[0-9]+")[, 1] - 2),
+           year = as.numeric(stri_extract_all_regex(year, "[0-9]+"))) %>%
+    group_by(scenario, fi_results_market, category, year) %>%
+    summarise(quantile_0.1 = quantile(value, probs = 0.1),
+              quantile_0.5 = quantile(value, probs = 0.5),
+              quantile_0.9 = quantile(value, probs = 0.9)) %>%
     ungroup()
-    
+  
   return(temp)
 }
 
-fi_parentmarket_results <- summarise_fi(parent_market)
+var_list <- as.list(c("credit_rating_alt", "credit_rating_change", "credit_rating_change_alt"))
 
-# Save equity results
-save_dated(fi_results2, "FI_instrument_level_results", folder = "Output", csv = FALSE)
-save_dated(fi_parentmarket_results, "FI_pmarket_results", folder = "Output", csv = TRUE)
+fi_results7 <- summarise_quantiles("credit_rating", 2017)
+fi_results8 <- map(var_list, function(x) {summarise_quantiles(x, 2018)}) %>%
+  bind_rows() %>%
+  bind_rows(fi_results7)
+
+save_dated(fi_results8, "FI_summary_credit_rating_results", folder = "Output", csv = TRUE)
+           
+#--------------------------------------------------------------------------------------------------
+
+##### SECTION 8 - Credit rating change charts ----
+
+### Quantile impacts table
+summarise_year <- function(summarise_year) {
+  
+  temp <- fi_results8 %>%
+    filter(year == summarise_year | category == "credit_rating" & year == 2017)
+  return(temp)
+}
+
+fi_results_2030 <- summarise_year(2030)
+fi_results_2050 <- summarise_year(2050)
+
+save_dated(fi_results_2030, "FI_2030_credit_rating_results", folder = "Output", csv = TRUE)
+save_dated(fi_results_2050, "FI_2050_credit_rating_results", folder = "Output", csv = TRUE)
+
+### Q10 - Median - Q90 MSCI ACWI-level impacts area chart
+
+# Clean up the MSCI ACWI level data
+fi_results9 <- fi_results6 %>%
+  select(scenario:moody_rating, credit_rating_2017, starts_with("credit_rating_change_2"),
+         credit_rating_change_alt_2018) %>%
+  gather(key = "year", value = "credit_rating_change", `credit_rating_change_2017`:`credit_rating_change_2050`) %>%
+  mutate(category = "credit_rating_change",
+         year = as.numeric(stri_extract_all_regex(year, "[0-9]+"))) %>%
+  select(scenario:moody_rating, category, year, credit_rating_change, credit_rating_2017, credit_rating_change_alt_2018)
+
+fi_results10 <- fi_results9 %>%
+  group_by(scenario, year) %>%
+  summarise(rating_change_q10 = quantile(credit_rating_change, probs = 0.1),
+            rating_change_q50 = quantile(credit_rating_change, probs = 0.5),
+            rating_change_q90 = quantile(credit_rating_change, probs = 0.9),
+            credit_rating_2017 = median(credit_rating_2017),
+            credit_rating_change_alt_2018 = median(credit_rating_change_alt_2018))
+
+# Ad-hoc changes to the data including smoothness assumptions
+fi_results11 <- fi_results10 %>%
+  # Fix all pre-2020 values to be 0
+  mutate(rating_change_q50 = ifelse(year <= 2020, 0, rating_change_q50),
+         rating_change_q10 = ifelse(year <= 2020, 0, rating_change_q10),
+         rating_change_q90 = ifelse(year <= 2020, 0, rating_change_q90)) %>%
+  # Smooth out rating change variable to 2025
+  group_by(scenario) %>%
+  mutate_at(vars(rating_change_q10, rating_change_q50, rating_change_q90),
+            funs(ifelse(year > 2020 & year < 2025, NA_real_, .))) %>%
+  mutate_at(vars(rating_change_q10, rating_change_q50, rating_change_q90),
+            funs(approx(x = year, y = ., xout = year)$y)) %>%
+  ungroup()
+
+# Generate the area chart itself
+plot_area_chart <- function(plot_scenario) {
+  
+  temp <- fi_results11 %>%
+    filter(scenario == plot_scenario)
+  
+  ggplot(temp) +
+    geom_ribbon(aes(x = year, ymin = rating_change_q10, ymax = rating_change_q90),
+                alpha = 0.9, fill = rgb(red = 196, green = 249, blue = 255, max = 255), colour = NA) + 
+    geom_line(aes(x = year, y = rating_change_q50), size = 0.8) +
+    geom_line(aes(x = year, y = rating_change_q10), size = 0.8, linetype = "dashed") + 
+    geom_line(aes(x = year, y = rating_change_q90), size = 0.8, linetype = "dashed") +
+    annotate("text", x = 2050.1, y = temp$rating_change_q50[temp$year == 2050], label = "Median", colour = "black", hjust = 0) +
+    annotate("text", x = 2050.1, y = temp$rating_change_q10[temp$year == 2050], label = "90th percentile", colour = "black", hjust = 0) +
+    annotate("text", x = 2050.1, y = temp$rating_change_q90[temp$year == 2050], label = "10th percentile", colour = "black", hjust = 0) +
+    scale_y_reverse(name = "Change in credit rating", limits = c(3, -1), expand = c(0, 0)) + 
+    scale_x_continuous(name = NULL, limits = c(2017, 2052), expand = c(0, 0)) +
+    theme_vivid()
+  
+  ggsave(paste0("4_Asset_impacts/Output/MSCI_credit_rating_change_plot_", plot_scenario, ".png"), width = 16, height = 9, units = "in")
+}
+
+scenarios <- unique(fi_results11$scenario)
+lapply(scenarios, plot_area_chart)
