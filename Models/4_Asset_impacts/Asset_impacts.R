@@ -214,7 +214,7 @@ sp_rating_rankings <- credit_rating_rankings %>%
   select(sp_ranking, sp_rating)
 
 credit_altman_mapping <- fi_data7 %>%
-  filter(scenario == "BAU") %>%
+  filter(scenario == "Paris_NDCs") %>%
   left_join(moody_rating_rankings, by = c("moody_rating")) %>%
   left_join(sp_rating_rankings, by = c("sp_rating"))
 
@@ -319,7 +319,7 @@ fi_results4 <- fi_results3 %>%
                         stri_extract_all_regex(., "[0-9]+")))) %>%
   group_by(fi_instrument_code, fi_isin_code) %>%
   mutate_at(vars(starts_with("credit_rating_")),
-            funs(change = . - .[[which(scenario == "BAU")]])) %>%
+            funs(change = . - .[[which(scenario == "Paris_NDCs")]])) %>%
   rename_at(vars(ends_with("_change")),
             funs(paste0(ifelse(grepl("alt_", .), "credit_rating_change_alt_", "credit_rating_change_"),
                         stri_extract_all_regex(., "[0-9]+")))) %>%
