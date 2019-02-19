@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  15/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in ICE vehicle scenario and exposure data and models stranding impacts
 ##### Dependencies:       1.  ICE new capacity data by climate policy scenario
@@ -24,10 +24,8 @@ discount_rate <- 0.0575
 ##### SECTION 2 - Clean scenario data ----
 
 scenario_data2 <- scenario_data %>%
-  select(-`IEA / TIAM Scenario`) %>%
-  gather(key = "year", value = "quantity", `2015`:`2050`) %>%
-  mutate(year = as.numeric(year)) %>%
-  filter(year != 2015 & year != 2018)
+  gather(key = "year", value = "quantity", `2020`:`2050`) %>%
+  mutate(year = as.numeric(year))
 
 #--------------------------------------------------------------------------------------------------
 
@@ -42,6 +40,6 @@ revenue_impact_npv <- scenario_data2 %>%
   group_by(scenario) %>%
   summarise(quantity_npv = sum(quantity_npv)) %>%
   ungroup() %>%
-  mutate(profit_impact_pct = quantity_npv / quantity_npv[[which(scenario == "BAU")]] - 1)
+  mutate(profit_impact_pct = quantity_npv / quantity_npv[[which(scenario == "Paris_NDCs")]] - 1)
   
 save_dated(revenue_impact_npv, "ICE_vehicle_dd_qimpacts", folder = "Output", csv = TRUE)
