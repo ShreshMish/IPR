@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  18/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1. Cost and competition model subsidiary level results: "3_Cost_and_competition/Output/Subsidiary_results.rds"
 #####                     2. Equity data: "4_Asset_impacts/Input/Equity_reconciled_2016USD_data.rds"
@@ -248,14 +248,14 @@ ggplot(sp_results) +
   geom_line(aes(x = altman_z_2017, y = sp_regression_results$coefficients[1] + altman_z_2017 * sp_regression_results$coefficients[2])) +
   theme_vivid() +
   scale_colour_manual(values = c("blue", "red"))
-ggsave(paste0("4_Asset_impacts/Interim/SP_rating_regression.png"), width = 16, height = 9, units = "in")
+ggsave(paste0("4_Asset_impacts/Interim/Plots/SP_rating_regression.png"), width = 16, height = 9, units = "in")
 
 ggplot(moody_results) +
   geom_point(aes(x = altman_z_2017, y = moody_ranking, colour = excluded)) +
   geom_line(aes(x = altman_z_2017, y = moody_regression_results$coefficients[1] + altman_z_2017 * moody_regression_results$coefficients[2])) +
   theme_vivid() +
   scale_colour_manual(values = c("blue", "red"))
-ggsave(paste0("4_Asset_impacts/Interim/Moody_rating_regression.png"), width = 16, height = 9, units = "in")
+ggsave(paste0("4_Asset_impacts/Interim/Plots/Moody_rating_regression.png"), width = 16, height = 9, units = "in")
 
 #--------------------------------------------------------------------------------------------------
 
@@ -443,7 +443,7 @@ plot_area_chart <- function(plot_scenario) {
     scale_x_continuous(name = NULL, limits = c(2017, 2052), expand = c(0, 0)) +
     theme_vivid()
   
-  ggsave(paste0("4_Asset_impacts/Output/MSCI_credit_rating_change_plot_", plot_scenario, ".png"), width = 16, height = 9, units = "in")
+  ggsave(paste0("4_Asset_impacts/Output/Plots/MSCI_credit_rating_change_plot_", plot_scenario, ".png"), width = 16, height = 9, units = "in")
 }
 
 scenarios <- unique(fi_results11$scenario)

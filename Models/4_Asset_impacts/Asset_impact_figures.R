@@ -79,17 +79,16 @@ equity_by_markets <- function(plot_scen = NULL, plot_markets = c("")) {
   ggplot() +
     geom_jitter(aes(x = temp3$index_cap, y = temp3$parent_market), height = 0.15, size = 1, alpha = 0.2) + 
     geom_point(aes(x = temp4$index_cap, y = temp4$parent_market), size = 3, shape = 23) +
-    scale_x_continuous(name = "Value impairment (% impact)", breaks = seq(-1, 1.5, 0.5), labels = scales::percent) +
+    scale_x_continuous(name = "Value impairment (% impact)", breaks = seq(-1, 1.5, 0.5), limits = c(-1,2), labels = scales::percent,
+                       expand = c(0, 0)) +
     scale_y_discrete(name = "Sector") +
-    ggtitle(paste0(plot_scen, " equity impact results")) +
-    theme_vivid(vivid_size = 1.25)
+    ggtitle(paste0(gsub("_", " ", plot_scen), " equity impacts")) +
+    theme_vivid(vivid_size = 1.25) +
+    theme(panel.grid.major.x = element_line(linetype = "dashed"))
   
-  ggsave(paste0("4_Asset_impacts/Output/Equity_impacts_", plot_scen, ".png"), width = 16, height = 9, units = c("in"))
+  ggsave(paste0("4_Asset_impacts/Output/Plots/Equity_impacts_", plot_scen, ".png"), width = 16, height = 9, units = c("in"))
 }
 
-equity_by_markets(plot_scen = "2DS_central", plot_markets = c("Power generation", "Coal",
-                                                              "Exploration and production", "Concrete and cement",
-                                                              "Automobiles", "Iron & Steel"))
 scenarios <- unique(equity_level_results$scenario)
 lapply(scenarios, function(x) {equity_by_markets(plot_scen = x, plot_markets = c("Power generation", "Coal", "Exploration and production", "Concrete and cement",
                                                                                  "Automobiles", "Iron & Steel")) })

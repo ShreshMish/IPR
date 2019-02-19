@@ -103,7 +103,7 @@ co2_prices4 <- co2_prices3 %>%
 # Difference all scenario against 'No_New_Action' so prices are 0 in this scenario and 'relative to BAU' in all other scenarios
 co2_prices5 <- co2_prices4 %>% 
   group_by(year) %>%
-  mutate(co2_price = co2_price - co2_price[[which(scenario == "No_New_Action")]])
+  mutate(co2_price = co2_price - co2_price[[which(scenario == "Paris_NDCs")]])
 
 # Save wide data
 co2_prices_wide <- co2_prices5 %>%
