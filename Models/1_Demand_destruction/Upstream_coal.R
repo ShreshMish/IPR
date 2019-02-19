@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  14/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in coal scenario and exposure data and models stranding impacts
 ##### Dependencies:       1.  Coal company-level cleaned data
@@ -70,11 +70,12 @@ mine_profit_data <- expand.grid(scenario = unique(scenario_data2$scenario),
   left_join(scenario_data2, by = c("year", "scenario")) %>%
   arrange(scenario, year, mine_ID)
 
-# Scale supply curve so that seaborne production = total global production in the BAU case
+# Scale supply curve so that seaborne production = total global production in the No_New_Action case - NB this has to be
+# No_New_Action rather than Paris_NDCs as it must be the upper bound of production
 mine_profit_data2 <- mine_profit_data %>% 
   group_by(year) %>%
   # Mines are ordered based on increasing cost, so cumulative production is maximised at the highest mined ID
-  mutate(scaling_factor = production_g[[which(scenario == "BAU" & mine_ID == 1)]] / cumulative_production[[which(scenario == "BAU" & mine_ID == max(mine_ID))]]) %>%
+  mutate(scaling_factor = production_g[[which(scenario == "No_New_Action" & mine_ID == 1)]] / cumulative_production[[which(scenario == "No_New_Action" & mine_ID == max(mine_ID))]]) %>%
   group_by(scenario, year) %>%
   arrange(scenario, year, unit_cost) %>%
   mutate(regional_production = regional_production * scaling_factor,
@@ -113,8 +114,8 @@ mine_profit_data5 <- mine_profit_data4 %>%
 supply_curve_chart <- function(chart_scenario, chart_year) {
   
   temp <- mine_profit_data5 %>%
-    mutate(bau_price = mean(ifelse(scenario == "BAU" & year == chart_year, price, NA_real_), na.rm = TRUE),
-           bau_quantity = mean(ifelse(scenario == "BAU" & year == chart_year, production_g, NA_real_), na.rm = TRUE),
+    mutate(paris_ndcs_price = mean(ifelse(scenario == "Paris_NDCs" & year == chart_year, price, NA_real_), na.rm = TRUE),
+           paris_ndcs_quantity = mean(ifelse(scenario == "Paris_NDCs" & year == chart_year, production_g, NA_real_), na.rm = TRUE),
            scenario_quantity = mean(ifelse(scenario == chart_scenario & year == chart_year,
                                            production_g, NA_real_), na.rm = TRUE)) %>%
     filter(scenario == chart_scenario & year == chart_year) %>%
@@ -129,9 +130,9 @@ supply_curve_chart <- function(chart_scenario, chart_year) {
     geom_rect(aes(xmin = ifelse(is.na(lag(cumulative_production, 1)), 0, lag(cumulative_production, 1)), xmax = cumulative_production,
                   ymin = 0, ymax = utilised_entry_cost, colour = region, fill = region)) +
     geom_hline(aes(yintercept = price)) + # Scenario price
-    geom_hline(aes(yintercept = bau_price)) + # BAU price
+    geom_hline(aes(yintercept = paris_ndcs_price)) + # Paris_NDCs price
     geom_vline(aes(xintercept = scenario_quantity)) + # Scenario quantity
-    geom_vline(aes(xintercept = bau_quantity)) + # BAU quantity
+    geom_vline(aes(xintercept = paris_ndcs_quantity)) + # Paris_NDCs quantity
     ggtitle(paste0(chart_scenario, " coal cost curve, ", chart_year)) +
     theme_vivid() +
     scale_x_continuous(name = "Production (Mtonnes)", expand = c(0, 0),
@@ -161,8 +162,12 @@ chart_scenario_year_combs <- as.list(chart_scenario_year_combs$combs)
 mine_profit_results <- mine_profit_data5 %>%
   group_by(year, mine_ID) %>%
   mutate(profit = unit_profit * regional_production * utilisation_share) %>% # Only include production if mine is not stranded (remains economical)
-  mutate(profit_impact = profit - profit[[which(scenario == "BAU")]],
-         margin_impact = (price - price[[which(scenario == "BAU")]]) * regional_production * utilisation_share,
+  mutate(profit_impact = profit - profit[[which(scenario == "Paris_NDCs")]],
+         # To avoid issues in scenarios with higher global quantities relative to baseline, utilisation share should be min over 'baseline' and
+         # the scenario in question; regional production is constant across scenarios
+         margin_impact = ifelse(profit_impact == 0, 0,
+                                (price - price[[which(scenario == "Paris_NDCs")]]) *
+                                  regional_production * min(utilisation_share, utilisation_share[[which(scenario == "Paris_NDCs")]])),
          stranding_impact = profit_impact - margin_impact)
 
 # Find net present value of each mine's profits over time
@@ -180,9 +185,9 @@ mine_profit_npv_results <- mine_profit_results %>%
                funs("sum", sum(weight * ., na.rm = TRUE))) %>%
   ungroup() %>%
   group_by(mine_ID, region) %>%
-  mutate(profit_impact_pct = profit_impact_npv_sum / profit_npv_sum[[which(scenario == "BAU")]],
-         stranding_impact_pct = stranding_impact_npv_sum / profit_npv_sum[[which(scenario == "BAU")]],
-         margin_impact_pct = margin_impact_npv_sum / profit_npv_sum[[which(scenario == "BAU")]])
+  mutate(profit_impact_pct = profit_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]],
+         stranding_impact_pct = stranding_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]],
+         margin_impact_pct = margin_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]])
 
 save_dated(mine_profit_npv_results, "Coal_cost_curve_scenario_npv_profits", folder = "Interim", csv = TRUE)
 
@@ -191,9 +196,9 @@ region_profit_npv_results <- mine_profit_npv_results %>%
   group_by(scenario, region) %>% 
   summarise_at(vars(ends_with("npv_sum")), funs(sum(., na.rm = TRUE))) %>%
   group_by(region) %>%
-  mutate(profit_impact_pct = profit_impact_npv_sum / profit_npv_sum[[which(scenario == "BAU")]],
-         stranding_impact_pct = stranding_impact_npv_sum / profit_npv_sum[[which(scenario == "BAU")]],
-         margin_impact_pct = margin_impact_npv_sum / profit_npv_sum[[which(scenario == "BAU")]])
+  mutate(profit_impact_pct = profit_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]],
+         stranding_impact_pct = stranding_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]],
+         margin_impact_pct = margin_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]])
 
 
 save_dated(region_profit_npv_results, "Coal_regional_NPV_impacts", folder = "Interim", csv = TRUE)
@@ -282,9 +287,9 @@ company_npv_results <- company_results2 %>%
   summarise_at(vars(profit, profit_impact, margin_impact, stranding_impact),
                funs(sum(., na.rm = TRUE))) %>%
   group_by(producer_name) %>%
-  mutate(profit_impact_pct = profit_impact / profit[[which(scenario == "BAU")]],
-          margin_impact_pct = margin_impact / profit[[which(scenario == "BAU")]],
-          stranding_impact_pct = stranding_impact / profit[[which(scenario == "BAU")]]) %>%
+  mutate(profit_impact_pct = profit_impact / profit[[which(scenario == "Paris_NDCs")]],
+          margin_impact_pct = margin_impact / profit[[which(scenario == "Paris_NDCs")]],
+          stranding_impact_pct = stranding_impact / profit[[which(scenario == "Paris_NDCs")]]) %>%
   ungroup() %>%
   arrange(producer_name, scenario)
 

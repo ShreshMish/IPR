@@ -148,7 +148,7 @@ company_results3 <- company_results2 %>%
 company_results4 <- company_results3 %>%
   mutate(profit_f = (price_f - unit_cost_f) * production_f)
 
-# Calcluate difference in profits compared to Paris_NDCs scenario, and stranding / margin impacts
+# Calculate difference in profits compared to Paris_NDCs scenario, and stranding / margin impacts
 company_results5 <- company_results4 %>%
   group_by(rystad_name, product, year) %>% 
   mutate(profit_impact = (profit_f - profit_f[[which(scenario == "Paris_NDCs")]])) %>%
