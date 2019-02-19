@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  16/02/2019
+##### Date of last edit:  19/02/2019
 ##### Code author:        Justine Schafer
 ##### Edited by:          Shyamal Patel
 ##### Description:        This script imports cleaned Rystad data and scenario analysis data for demand destruction analysis
@@ -148,14 +148,14 @@ company_results3 <- company_results2 %>%
 company_results4 <- company_results3 %>%
   mutate(profit_f = (price_f - unit_cost_f) * production_f)
 
-# Calcluate difference in profits compared to BAU scenario, and stranding / margin impacts
+# Calcluate difference in profits compared to Paris_NDCs scenario, and stranding / margin impacts
 company_results5 <- company_results4 %>%
   group_by(rystad_name, product, year) %>% 
-  mutate(profit_impact = (profit_f - profit_f[[which(scenario == "BAU")]])) %>%
+  mutate(profit_impact = (profit_f - profit_f[[which(scenario == "Paris_NDCs")]])) %>%
   # Reconsider the calculations / assumptions below at a later stage - preserved for now to ensure results
   # align, but the assumptions don't make sense
-  mutate(profit_impact_temp = profit_f[[which(scenario == "BAU")]] - (price_f - unit_cost_f[[which(scenario == "BAU")]]) * production_f,
-         margin_impact_temp = (price_f[[which(scenario == "BAU")]] - price_f) * production_f) %>%
+  mutate(profit_impact_temp = profit_f[[which(scenario == "Paris_NDCs")]] - (price_f - unit_cost_f[[which(scenario == "Paris_NDCs")]]) * production_f,
+         margin_impact_temp = (price_f[[which(scenario == "Paris_NDCs")]] - price_f) * production_f) %>%
   mutate(margin_impact = profit_impact * (margin_impact_temp / profit_impact_temp),
          stranding_impact = profit_impact - margin_impact) %>%
   ungroup() %>%
@@ -223,9 +223,9 @@ company_npv_results2 <- company_npv_results %>%
   summarise_at(vars(ends_with("_npv_sum")),
                funs(sum(., na.rm = TRUE))) %>%
   group_by(rystad_name, product) %>%
-  mutate(profit_impact_pct = profit_impact_npv_sum / profit_f_npv_sum[[which(scenario == "BAU")]],
-         stranding_impact_pct = stranding_impact_npv_sum / profit_f_npv_sum[[which(scenario == "BAU")]],
-         margin_impact_pct = margin_impact_npv_sum / profit_f_npv_sum[[which(scenario == "BAU")]]) %>%
+  mutate(profit_impact_pct = profit_impact_npv_sum / profit_f_npv_sum[[which(scenario == "Paris_NDCs")]],
+         stranding_impact_pct = stranding_impact_npv_sum / profit_f_npv_sum[[which(scenario == "Paris_NDCs")]],
+         margin_impact_pct = margin_impact_npv_sum / profit_f_npv_sum[[which(scenario == "Paris_NDCs")]]) %>%
   ungroup() %>%
   select(rystad_name, scenario, product, profit_f_npv_sum, ends_with("pct")) %>%
   rename(profit = profit_f_npv_sum)
