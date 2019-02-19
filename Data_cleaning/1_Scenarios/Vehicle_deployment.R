@@ -33,7 +33,7 @@ scenario_names <- read_excel(input_source("Vivid_scenario_names.xlsx"),
 
 # Read in public scenarios consolidated data - EVO18 vehicle stock historical sheet
 evo18_ev_hist_stock <- read_excel(input_source("Public_scenarios.xlsx"),
-                             sheet = "R15. EVO 18 hist stock", range = "$A$9:$N$32")
+                                  sheet = "R15. EVO 18 hist stock", range = "$A$9:$N$32")
 
 # Read in public scenarios consolidated data - EVO 17 vehicle stock scenarios sheet
 evo17_ev_scen_stock <- read_excel(input_source("Public_scenarios.xlsx"),
@@ -218,7 +218,7 @@ vehicle_stock5 <- vehicle_stock4 %>%
 
 #--------------------------------------------------------------------------------------------------
 
-##### SECTION 5 - Calculate unsmoothed change in EV and ICE stock in each year ----
+##### SECTION 5 - Calculate smoothed EV and ICE sales in each year ----
 
 new_capacity_calc <- function(new_cap_category) {
   
@@ -242,7 +242,7 @@ new_capacity_calc <- function(new_cap_category) {
     # Add new stock based on change in total capacity
     mutate(delta_stock = ifelse(stock - lag(stock, n = 1) < 0, 0, stock - lag(stock, n = 1))) %>%
     # First 11 years get custom replacement capacity - one 11th of 2017 year value
-    mutate(replace_stock = stock / 11) %>%
+    mutate(replace_stock = stock / vehicle_lifetime) %>%
     # Sales = delta stock + stock replaced
     rowwise() %>%
     mutate(sales = sum(c(delta_stock, replace_stock), na.rm = TRUE)) %>%
@@ -286,8 +286,8 @@ ev_sales <- new_capacity_calc("EVs")
 prepare_results <- function(prepare_data) {
   
   temp <- prepare_data %>%
-    select(scenario, year, category, sales) %>%
-    spread(key = year, value = sales) %>%
+    select(scenario, year, category, smooth_sales) %>%
+    spread(key = year, value = smooth_sales) %>%
     filter(!is.na(category)) %>%
     select(-category)
   
