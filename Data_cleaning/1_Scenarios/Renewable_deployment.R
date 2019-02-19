@@ -103,40 +103,53 @@ tiam_ren_capa4 <- tiam_ren_capa3 %>%
 # Summarise renewable capacity over regions and subcategories
 tiam_ren_capa5 <- tiam_ren_capa4 %>%
   group_by(scenario, category, units, year) %>%
-  summarise(capacity = sum(capacity, na.rm = TRUE))
+  summarise(capacity = sum(capacity, na.rm = TRUE)) %>%
+  ungroup()
 
-# Remove 'No_New_action' and 'Paris_NDCs' scenarios from TIAM [using WEO18 for these]
+# Remove 'No_New_action' and reame 'Paris_NDCs' scenarios from TIAM [using WEO18 for these but need to adjust all TIAM scenarios by difference
+# between Paris NDCs TIAM and Paris NDCS WEO
 tiam_ren_capa6 <- tiam_ren_capa5 %>%
-  filter(!(scenario %in% c("No_New_Action", "Paris_NDCs"))) %>%
+  filter(!(scenario %in% c("No_New_Action"))) %>%
+  mutate(scenario = ifelse(scenario == "Paris_NDCs", "Paris_NDCs_TIAM", scenario)) %>%
   filter(year >= 2020 & year <= 2050)
 
 # Merge together TIAM scenario data and WEO18 scenario data
 ren_capa <- tiam_ren_capa6 %>%
   bind_rows(weo18_ren_capa3)
 
+# Adjust TIAM scenarios by difference between two Paris scenarios - only for 2030 and do not include Late Action in this
+ren_capa2 <- ren_capa %>%
+  spread(key = scenario, value = capacity) %>%
+  mutate_at(vars(`2DS_Balanced_Transformation`, `Below_2DS`, `Efficiency_Boost`, `EVs_Unplugged`,
+                 `Renewable_Revolution`, `Room_for_CCS`),
+            funs(ifelse(year == 2030, . + Paris_NDCs - Paris_NDCs_TIAM, .))) %>%
+  gather(key = scenario, value = capacity, -(category:year)) %>%
+  select(scenario, everything()) %>%
+  filter(scenario != "Paris_NDCs_TIAM")
+
 #--------------------------------------------------------------------------------------------------
 
 ##### SECTION 4 - Ad hoc changes to renewable capacity data - please check when updating scenario inputs ----
 
 # Put scenarios in columns before further data cleaning
-ren_capa2 <- ren_capa %>%
+ren_capa3 <- ren_capa2 %>%
   spread(key = scenario, value = capacity)
 
 # Fill in 2016, 2017 and 2020 WEO Paris values in place of TIAM values, 2030 WEO Paris values in place of TIAM Late-Action scenario values
-ren_capa3 <- ren_capa2 %>%
-  mutate_at(vars(unique(tiam_ren_capa6$scenario)),
+ren_capa4 <- ren_capa3 %>%
+  mutate_at(vars(unique(tiam_ren_capa5$scenario)[!(unique(tiam_ren_capa5$scenario) %in% c("Paris_NDCs", "No_New_Action"))]),
             funs(case_when(year %in% c(2016, 2017, 2020) ~ Paris_NDCs,
                            TRUE ~ .))) %>%
   mutate(Late_Action = ifelse(year == 2030, Paris_NDCs, Late_Action))
 
 # Replace hydro values under TIAM scenarios with Paris NDCs, as values are lower across the board
-ren_capa4 <- ren_capa3 %>%
-  mutate_at(vars(unique(tiam_ren_capa6$scenario)),
+ren_capa5 <- ren_capa4 %>%
+  mutate_at(vars(unique(tiam_ren_capa5$scenario)[!(unique(tiam_ren_capa5$scenario) %in% c("Paris_NDCs", "No_New_Action"))]),
             funs(case_when(category == "Hydro" ~ Paris_NDCs,
                            TRUE ~ .)))
 
 # Remove unneeded years
-ren_capa5 <- ren_capa4 %>%
+ren_capa6 <- ren_capa5 %>%
   filter(year %in% c(2016, 2017, 2020, 2030, 2040, 2050)) %>%
   gather(key = "scenario", value = "capacity", -(category:year)) %>%
   select(scenario, everything())
@@ -151,11 +164,11 @@ save_dated(ren_capa5, "Cleaned_renewable_capacity", folder = "Interim", csv = TR
 new_capacity_calc <- function(new_cap_category, new_cap_lifetime) {
   
   # Filter based on chosen character
-  temp <- ren_capa5 %>%
+  temp <- ren_capa6 %>%
     filter(new_cap_category == category)
   
   # Extrapolate from 2015 - 2050
-  temp2 <- expand.grid(scenario = unique(ren_capa5$scenario),
+  temp2 <- expand.grid(scenario = unique(ren_capa6$scenario),
                        year = seq(2015, 2050, 1), stringsAsFactors = FALSE) %>%
     left_join(temp, by = c("scenario", "year")) %>%
     arrange(scenario, year) %>%
@@ -221,24 +234,36 @@ prepare_results <- function(prepare_data) {
     spread(key = year, value = smooth_sales)
 }
 
-ren_capa6 <- map(list(solar_capa_sales, wind_capa_sales, hydro_capa_sales), prepare_results) %>%
+ren_capa7 <- map(list(solar_capa_sales, wind_capa_sales, hydro_capa_sales), prepare_results) %>%
   bind_rows()
 
-save_dated(ren_capa6, "Renewable_capacity", folder = "Output", csv = TRUE)
+# Add a combined wind + solar category due to the strange solar deployment levels under some scenarios
+ren_capa8 <- expand.grid(scenario = unique(ren_capa7$scenario),
+                         category = c(unique(ren_capa7$category), "Wind + Solar"), stringsAsFactors = FALSE) %>%
+  left_join(ren_capa7, by = c("scenario", "category")) %>%
+  gather(key = year, value = capacity, `2017`:`2050`) %>%
+  spread(key = category, value = capacity) %>%
+  mutate(`Wind + Solar` = Wind + Solar) %>%
+  gather(key = category, value = capacity, -(scenario:year)) %>%
+  spread(key = year, value = capacity)
+ 
+save_dated(ren_capa8, "Renewable_capacity", folder = "Output", csv = TRUE)
 
 plot_fuel_sales <- function(plot_fuel) {
   
   windows()
-  ggplot(ren_capa6 %>% filter(category == plot_fuel) %>%
+  ggplot(ren_capa8 %>% filter(category == plot_fuel) %>%
            gather(key = year, value = capacity, -(scenario:category)) %>%
            mutate(year = as.numeric(year)) %>%
            rename(capacity_sales = capacity)) +
-    geom_line(aes(x = year, y = capacity_sales, colour = scenario)) +
+    geom_line(aes(x = year, y = capacity_sales, colour = scenario), size = 1.1) +
     theme_vivid() +
-    scale_colour_vivid_house2()
+    scale_colour_vivid_house2() +
+    ggtitle(plot_fuel)
 
 }
 
-plot_fuel_sales("Solar")
-plot_fuel_sales("Wind")
-plot_fuel_sales("Hydro")
+# plot_fuel_sales("Solar")
+# plot_fuel_sales("Wind")
+# plot_fuel_sales("Wind + Solar")
+# plot_fuel_sales("Hydro")
