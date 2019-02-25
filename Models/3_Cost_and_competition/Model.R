@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  17/02/2019
+##### Date of last edit:  22/02/2019
 ##### Model author:       Robert Ritz
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       N/A
@@ -113,10 +113,10 @@ run_rr_model <- function(rr_data, rr_carbon_cost_pwh_data = NULL, rr_parameter_d
              
              ## Profit - before firm closure, before corporation tax adjustment
              !!profit_pre_closure_pre_tax_t_new := ifelse((!!quantity_post_closure_t_old) == 0, 0,
-                                                          (!!profit_post_closure_pre_tax_t_old) * (1 + (!!f_margin_impact_t_new) + (!!e_sales_impact_t_new) + (!!f_margin_impact_t_new) * (!!e_sales_impact_t_new))),
+                                                          (!!profit_post_closure_pre_tax_t_old) * gamma_factor * (1 + (!!f_margin_impact_t_new) + (!!e_sales_impact_t_new) + (!!f_margin_impact_t_new) * (!!e_sales_impact_t_new))),
              ## Quantity reallocated due to firm closure (if profit pre-closure and pre-tax is negative)
              !!quantity_pre_closure_t_new := ifelse((!!quantity_post_closure_t_old) == 0, 0,
-                                                    (!!quantity_post_closure_t_old) * (1 + (!!e_sales_impact_t_new))),
+                                                    (!!quantity_post_closure_t_old) * (1 + (!!e_sales_impact_t_new)) * gamma_factor),
              !!sector_quantity_pre_closure_t_new := sum((!!quantity_pre_closure_t_new)),
              # TRY REPLACING BELOW WITH IF PROFIT MARGIN < 0 ...
              !!quantity_reallocated_t_new := if(rr_parameter_data$firm_closure == "ON")
@@ -200,7 +200,7 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
                                     revenue_2017 - net_income_2017 / (1 - corporation_tax_rate),
                                     revenue_2017 - net_income_2017),
            profit_pre_closure_pre_tax_2017 = ifelse(revenue_2017 - net_income_2017 / (1 - corporation_tax_rate) >= 0, 1 / (1 - corporation_tax_rate), 1) * 
-             market_cap_model * (parameter_data$discount_rate / (1 + parameter_data$discount_rate)),
+             net_income_margin * revenue_2017,
            profit_post_closure_pre_tax_2017 = profit_pre_closure_pre_tax_2017,
            revenue_BAU_quantity_2017 = revenue_2017) %>%
     group_by(scenario, region, market) %>%
@@ -211,6 +211,8 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
     
   ### Adjust emissions down based on Winsorisation procedure [if applicable]
   # Store initial emissions as base values
+  # Variation in CO2 intensity is set to 0.49 - 0.51 percentiles for iron & steel
+  # Variation in CO2 intensity is set to 0.2 - 0.8 percentiles for concrete and cement
   if(parameter_data$winsorise_scope_1 == "ON") {
     panel_model_data3 <- panel_model_data2 %>%
       mutate(co2_base_scope_1_2017 = co2_scope_1_2017,
@@ -219,8 +221,12 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
       # Revenue 2017 case is for companies which are wiped out in the DD / CM analysis
       mutate(co2_intensity_scope_1 = ifelse(revenue_2017 == 0, 0, co2_scope_1_2017 / revenue_2017)) %>%
       group_by(scenario, market) %>%
-      mutate(low_co2_intensity_scope_1 = quantile(co2_intensity_scope_1, probs = parameter_data$winsorise_qlow, na.rm = TRUE),
-             high_co2_intensity_scope_1 = quantile(co2_intensity_scope_1, probs = parameter_data$winsorise_qhigh, na.rm = TRUE)) %>%
+      mutate(low_co2_intensity_scope_1 = case_when(market == "Iron & Steel" ~ quantile(co2_intensity_scope_1, probs = 0.49, na.rm = TRUE),
+                                                   market == "Concrete and cement" ~ quantile(co2_intensity_scope_1, probs = 0.2, na.rm = TRUE),
+                                                   TRUE ~ quantile(co2_intensity_scope_1, probs = parameter_data$winsorise_qlow, na.rm = TRUE)),
+             high_co2_intensity_scope_1 = case_when(market == "Iron & Steel" ~ quantile(co2_intensity_scope_1, probs = 0.51, na.rm = TRUE),
+                                                    market == "Concrete and cement" ~ quantile(co2_intensity_scope_1, probs = 0.8, na.rm = TRUE),
+                                                    TRUE ~ quantile(co2_intensity_scope_1, probs = parameter_data$winsorise_qhigh, na.rm = TRUE))) %>%
       ungroup() %>%
       mutate(co2_intensity_scope_1 = case_when(co2_intensity_scope_1 <= low_co2_intensity_scope_1 ~ low_co2_intensity_scope_1,
                                                co2_intensity_scope_1 >= high_co2_intensity_scope_1 ~ high_co2_intensity_scope_1,
@@ -338,7 +344,7 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
     mutate_at(vars(starts_with("profit_post_closure_post_tax")), 
               funs(npv = . / (1 + parameter_data$discount_rate) ^ (as.numeric(stri_extract_all_regex(deparse(substitute(.)), "[0-9]+")) - 2018))) %>%
     rename_at(vars(ends_with("npv")), funs(paste0("profit_npv_post_closure_post_tax_", stri_extract_all_regex(., "[0-9]+")))) %>%
-    mutate(profit_npv_post_closure_post_tax_terminal = profit_npv_post_closure_post_tax_2050 / parameter_data$discount_rate)
+    mutate(profit_npv_post_closure_post_tax_terminal = profit_npv_post_closure_post_tax_2050 * (gamma_factor / ( 1 + parameter_data$discount_rate - gamma_factor)))
     
   subsidiary_results <- run_results2 %>%
     select(scenario, company_id, company, market, region, market_cap_2017, market_cap_model, !!(variables)) %>%
@@ -369,6 +375,12 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
   region_market_results <- summarise_results(scenario, region, market)
   market_results <- summarise_results(scenario, market)
   region_results <- summarise_results(scenario, region)
+  
+  # Set attributes so that parameter values can be recalled for run results when needed
+  attr(subsidiary_results, "parameters") <- parameter_data
+  attr(region_market_results, "parameters") <- parameter_data
+  attr(market_results, "parameters") <- parameter_data
+  attr(region_results, "parameters") <- parameter_data
   
   return(list(subsidiary_results, region_market_results, market_results, region_results))
 }

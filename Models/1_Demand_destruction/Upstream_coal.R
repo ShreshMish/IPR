@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  19/02/2019
+##### Date of last edit:  23/02/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in coal scenario and exposure data and models stranding impacts
 ##### Dependencies:       1.  Coal company-level cleaned data
@@ -170,6 +170,8 @@ mine_profit_results <- mine_profit_data5 %>%
                                   regional_production * min(utilisation_share, utilisation_share[[which(scenario == "Paris_NDCs")]])),
          stranding_impact = profit_impact - margin_impact)
 
+save_dated(mine_profit_results, "Coal_mine_profit_results", folder = "Interim", csv = TRUE)
+
 # Find net present value of each mine's profits over time
 # Note that this has no bearing on company-level results
 mine_profit_npv_results <- mine_profit_results %>%
@@ -235,13 +237,15 @@ company_region_temporal_exposure <- company_data3 %>%
   mutate(year = as.numeric(substring(year, nchar(year) - 3, nchar(year)))) %>%
   arrange(producer_name, region, year)
 
+save_dated(company_region_temporal_exposure, "Coal_company_region_exposure", folder = "Interim", csv = TRUE)
+
 #--------------------------------------------------------------------------------------------------
 
 ##### SECTION 6 - Interpolate mine-level profit over all years before combining with company dataset ----
 
 mine_profit_results2 <- expand.grid(scenario = unique(mine_profit_results$scenario),
-                                 mine_ID = unique(mine_profit_results$mine_ID),
-                                 year = 2016:2050, stringsAsFactors = FALSE) %>%
+                                    mine_ID = unique(mine_profit_results$mine_ID),
+                                    year = 2016:2050, stringsAsFactors = FALSE) %>%
   left_join(mine_profit_results, by = c("scenario", "year", "mine_ID")) %>%
   arrange(scenario, mine_ID, year) %>%
   group_by(scenario, mine_ID) %>%
@@ -272,12 +276,16 @@ company_results <- expand.grid(scenario = unique(mine_profit_results3$scenario),
   mutate_at(vars(profit, profit_impact, margin_impact, stranding_impact),
             funs(. * production_share))
 
+save_dated(company_results, "Coal_company_region_results", folder = "Interim", csv = TRUE)
+
 # Summarise over regions
 company_results2 <- company_results %>%
   group_by(scenario, producer_name, year) %>%
   summarise_at(vars(profit, profit_impact, margin_impact, stranding_impact),
                funs(sum(., na.rm = TRUE))) %>%
   ungroup()
+
+save_dated(company_results2, "Coal_dd_full_results", folder = "Interim", csv = TRUE)
 
 # Calculate NPV profits and summarise over years
 company_npv_results <- company_results2 %>%

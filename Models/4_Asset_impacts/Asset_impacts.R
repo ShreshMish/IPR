@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  19/02/2019
+##### Date of last edit:  20/02/2019
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1. Cost and competition model subsidiary level results: "3_Cost_and_competition/Output/Subsidiary_results.rds"
 #####                     2. Equity data: "4_Asset_impacts/Input/Equity_reconciled_2016USD_data.rds"
@@ -102,15 +102,25 @@ summarise_equity <- function(...) {
   summarise_vars <- enquos(...)
   
   temp <- equity_results2 %>%
-    group_by(scenario, !!!summarise_vars) %>%
-    mutate(profit_npv_total = market_cap * (index + 1),
-           profit_npv_total_cap = market_cap * (index_cap + 1)) %>%
-    summarise_at(vars(market_cap, profit_npv_total, profit_npv_total_cap),
-                 funs(sum(., na.rm = TRUE))) %>%
+    group_by(scenario, !!!(summarise_vars)) %>%
+    #mutate(profit_npv_total = market_cap * (index + 1),
+    #       profit_npv_total_cap = market_cap * (index_cap + 1)) %>%
+    #summarise_at(vars(market_cap, profit_npv_total, profit_npv_total_cap),
+    #             funs(sum(., na.rm = TRUE))) %>%
+    summarise(index_p5 = quantile(index, probs = 0.05),
+              index_p10 = quantile(index, probs = 0.10),
+              index_cap_p5 = quantile(index_cap, probs = 0.05),
+              index_cap_p10 = quantile(index_cap, probs = 0.10),
+              index_p95 = quantile(index, probs = 0.95),
+              index_p90 = quantile(index, probs = 0.90),
+              index_cap_p95 = quantile(index_cap, probs = 0.95),
+              index_cap_p90 = quantile(index_cap, probs = 0.90),
+              index = quantile(index, probs = 0.5),
+              index_cap = quantile(index_cap, probs = 0.5)) %>%
     ungroup() %>%
-    mutate(index = profit_npv_total / market_cap - 1,
-           index_cap = profit_npv_total_cap / market_cap - 1) %>%
-    select(scenario, !!!summarise_vars, market_cap, index, index_cap)
+    #mutate(index = profit_npv_total / market_cap - 1,
+    #       index_cap = profit_npv_total_cap / market_cap - 1) %>%
+    select(scenario, !!!summarise_vars, contains("index"))
   
   return(temp)
 }
@@ -120,11 +130,26 @@ equity_domicile_results <- summarise_equity(domicile)
 equity_parentmarket_domicile_results <- summarise_equity(parent_market, domicile) %>%
   arrange(scenario, parent_market, domicile)
 
+equity_msci_results <- equity_results2 %>%
+  group_by(scenario) %>%
+  summarise(index_p5 = quantile(index, probs = 0.05),
+            index_p10 = quantile(index, probs = 0.10),
+            index_cap_p5 = quantile(index_cap, probs = 0.05),
+            index_cap_p10 = quantile(index_cap, probs = 0.10),
+            index_p95 = quantile(index, probs = 0.95),
+            index_p90 = quantile(index, probs = 0.90),
+            index_cap_p95 = quantile(index_cap, probs = 0.95),
+            index_cap_p90 = quantile(index_cap, probs = 0.90),
+            index = quantile(index, probs = 0.5),
+            index_cap = quantile(index_cap, probs = 0.5)) %>%
+  mutate(parent_market = "MSCI ACWI")
+
 # Save equity results
 save_dated(equity_results2, "Equity_level_results", folder = "Output", csv = FALSE)
 save_dated(equity_parentmarket_results, "Equity_pmarket_results", folder = "Output", csv = TRUE)
 save_dated(equity_domicile_results, "Equity_dom_results", folder = "Output", csv = TRUE)
 save_dated(equity_parentmarket_domicile_results, "Equity_pmarket_dom_results", folder = "Output", csv = TRUE)
+save_dated(equity_msci_results, "Equity_msci_results", folder = "Output", csv = TRUE)
 
 #--------------------------------------------------------------------------------------------------
 
@@ -132,11 +157,11 @@ save_dated(equity_parentmarket_domicile_results, "Equity_pmarket_dom_results", f
 
 # Map parent markets to fixed income results markets
 parent_market_mapping <- tibble(parent_market = unique(market_exposure_results2$parent_market)) %>%
-  mutate(fi_results_market = case_when(parent_market %in% c("Exploration and production", "Power generation",
-                                                            "Consumer Electronics") ~ parent_market,
+  mutate(fi_results_market = case_when(parent_market %in% c("Exploration and production", "Power generation") ~ parent_market,
                                        parent_market %in% c("Auto Parts", "Automobiles") ~ "Autos",
                                        parent_market %in% c("Concrete and cement", "Iron & Steel",
                                                             "Other Chemicals", "Specialty Chemicals") ~ "Emissions intensive industries",
+                                       parent_market %in% c("Computer Services", "Internet", "Software") ~ "Computers & internet",
                                        TRUE ~ "Other sectors"))
 
 # Merge in company market cap, revenue and profit pre-tax results
@@ -350,6 +375,7 @@ summarise_quantiles <- function(summarise_var, summarise_start_yr) {
   summarise_var_yr_first <- rlang::sym(paste0(summarise_var, "_", summarise_start_yr))
   summarise_var_yr_last <- rlang::sym(paste0(summarise_var, "_2050"))
   
+  # FI market level results
   temp <- fi_results6 %>%
     select(scenario:moody_rating, (!!summarise_var_yr_first):(!!summarise_var_yr_last)) %>%
     gather(key = "year", value = "value", (!!summarise_var_yr_first):(!!summarise_var_yr_last)) %>%
@@ -361,7 +387,23 @@ summarise_quantiles <- function(summarise_var, summarise_start_yr) {
               quantile_0.9 = quantile(value, probs = 0.9)) %>%
     ungroup()
   
-  return(temp)
+  # MSCI level results
+  temp2 <- fi_results6 %>%
+    select(scenario:moody_rating, (!!summarise_var_yr_first):(!!summarise_var_yr_last)) %>%
+    gather(key = "year", value = "value", (!!summarise_var_yr_first):(!!summarise_var_yr_last)) %>%
+    mutate(category = substring(year, first = 1, last = stri_locate_first_regex(year, "[0-9]+")[, 1] - 2),
+           year = as.numeric(stri_extract_all_regex(year, "[0-9]+"))) %>%
+    group_by(scenario, category, year) %>%
+    summarise(quantile_0.1 = quantile(value, probs = 0.1),
+              quantile_0.5 = quantile(value, probs = 0.5),
+              quantile_0.9 = quantile(value, probs = 0.9)) %>%
+    ungroup() %>%
+    mutate(fi_results_market = "MSCI ACWI")
+  
+  temp3 <- temp %>%
+    bind_rows(temp2)
+  
+  return(temp3)
 }
 
 var_list <- as.list(c("credit_rating_alt", "credit_rating_change", "credit_rating_change_alt"))
@@ -403,7 +445,7 @@ fi_results9 <- fi_results6 %>%
   select(scenario:moody_rating, category, year, credit_rating_change, credit_rating_2017, credit_rating_change_alt_2018)
 
 fi_results10 <- fi_results9 %>%
-  group_by(scenario, year) %>%
+  group_by(scenario, year, fi_results_market) %>%
   summarise(rating_change_q10 = quantile(credit_rating_change, probs = 0.1),
             rating_change_q50 = quantile(credit_rating_change, probs = 0.5),
             rating_change_q90 = quantile(credit_rating_change, probs = 0.9),
@@ -417,7 +459,7 @@ fi_results11 <- fi_results10 %>%
          rating_change_q10 = ifelse(year <= 2020, 0, rating_change_q10),
          rating_change_q90 = ifelse(year <= 2020, 0, rating_change_q90)) %>%
   # Smooth out rating change variable to 2025
-  group_by(scenario) %>%
+  group_by(scenario, fi_results_market) %>%
   mutate_at(vars(rating_change_q10, rating_change_q50, rating_change_q90),
             funs(ifelse(year > 2020 & year < 2025, NA_real_, .))) %>%
   mutate_at(vars(rating_change_q10, rating_change_q50, rating_change_q90),
@@ -425,26 +467,33 @@ fi_results11 <- fi_results10 %>%
   ungroup()
 
 # Generate the area chart itself
-plot_area_chart <- function(plot_scenario) {
+plot_area_chart <- function(plot_scenario, plot_sector) {
   
   temp <- fi_results11 %>%
-    filter(scenario == plot_scenario)
+    filter(scenario == plot_scenario) %>%
+    filter(fi_results_market == plot_sector)
   
-  ggplot(temp) +
+  ggplot(temp %>% mutate(rating_change_q10 = -rating_change_q10,
+                         rating_change_q90 = -rating_change_q90,
+                         rating_change_q50 = -rating_change_q50)) +
     geom_ribbon(aes(x = year, ymin = rating_change_q10, ymax = rating_change_q90),
                 alpha = 0.9, fill = rgb(red = 196, green = 249, blue = 255, max = 255), colour = NA) + 
     geom_line(aes(x = year, y = rating_change_q50), size = 0.8) +
     geom_line(aes(x = year, y = rating_change_q10), size = 0.8, linetype = "dashed") + 
     geom_line(aes(x = year, y = rating_change_q90), size = 0.8, linetype = "dashed") +
-    annotate("text", x = 2050.1, y = temp$rating_change_q50[temp$year == 2050], label = "Median", colour = "black", hjust = 0) +
-    annotate("text", x = 2050.1, y = temp$rating_change_q10[temp$year == 2050], label = "90th percentile", colour = "black", hjust = 0) +
-    annotate("text", x = 2050.1, y = temp$rating_change_q90[temp$year == 2050], label = "10th percentile", colour = "black", hjust = 0) +
-    scale_y_reverse(name = "Change in credit rating", limits = c(3, -1), expand = c(0, 0)) + 
-    scale_x_continuous(name = NULL, limits = c(2017, 2052), expand = c(0, 0)) +
-    theme_vivid()
+    #annotate("point", x = 2020, y = temp$credit_rating_change_alt_2018[temp$year == 2020] * (-1)) +
+    #geom_segment(aes(x = 2020, y = temp$credit_rating_change_alt_2018[temp$year == 2020] * (-1), xend = 2020, yend = temp$rating_change_q50[temp$year == 2020]),
+    #             linetype = "dashed", size = 0.8) +
+    annotate("text", x = 2050.1, y = temp$rating_change_q50[temp$year == 2050] * (-1), label = "Median", colour = "black", hjust = 0, size = 5) +
+    annotate("text", x = 2050.1, y = temp$rating_change_q10[temp$year == 2050] * (-1), label = "90th percentile", colour = "black", hjust = 0, size = 5) +
+    annotate("text", x = 2050.1, y = temp$rating_change_q90[temp$year == 2050] * (-1), label = "10th percentile", colour = "black", hjust = 0, size = 5) +
+    scale_y_continuous(name = "Change in credit rating", limits = c(-3, 1), expand = c(0, 0)) + 
+    scale_x_continuous(name = NULL, limits = c(2017, 2054), expand = c(0, 0)) +
+    theme_vivid(vivid_size = 1.4)
   
-  ggsave(paste0("4_Asset_impacts/Output/Plots/MSCI_credit_rating_change_plot_", plot_scenario, ".png"), width = 16, height = 9, units = "in")
+  ggsave(paste0("4_Asset_impacts/Output/Plots/", plot_sector, "_credit_rating_change_plot_", plot_scenario, ".png"), width = 16, height = 9, units = "in")
 }
 
 scenarios <- unique(fi_results11$scenario)
-lapply(scenarios, plot_area_chart)
+#lapply(scenarios, plot_area_chart)
+plot_area_chart("2DS_Balanced_Transformation", "Emissions intensive industries")

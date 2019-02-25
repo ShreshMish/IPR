@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  19/02/2019
+##### Date of last edit:  24/02/2019
 ##### Code author:        Justine Schafer
 ##### Edited by:          Shyamal Patel
 ##### Description:        This script uses cleaned patent and revenue data for Vivid categories to project future 
@@ -291,6 +291,8 @@ company_results <- market_share_results %>%
   select(scenario, company_id, company, year, ve_category, projected_profit, projected_revenue,
          constant_share_profit, constant_share_revenue, current_rev_market_share, ip_market_share,
          projected_market_share, everything())
+
+save_dated(company_results, "Cleantech_company_impacts_full", folder = "Interim", csv = TRUE)
 
 #--------------------------------------------------------------------------------------------------
 

@@ -107,7 +107,7 @@ model_panel2 <- model_panel %>%
   left_join(carbon_cost_results, by = c("market", "region")) %>%
   select(scenario, everything()) %>%
   # Temporary scenario merge variable for 'Lack of coordination' scenario [same DD/CM results as 'Central' scenario]
-  mutate(scenario_temp = ifelse(scenario == "2DS_regional", "2DS_central", scenario)) %>%
+  mutate(scenario_temp = ifelse(scenario == "Lack_Of_Coordination", "2DS_Balanced_Transformation", scenario)) %>%
   left_join(dd_cm_company_results, by = c("scenario_temp" = "scenario", "company_id", "company", "market")) %>%
   left_join(dd_cm_industry_results, by = c("scenario_temp" = "scenario", "market")) %>%
   mutate(profit_impact_pct = ifelse(!is.na(profit_impact_pct.x), profit_impact_pct.x, profit_impact_pct.y)) %>%
