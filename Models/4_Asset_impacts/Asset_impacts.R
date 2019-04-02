@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  20/02/2019
+##### Date of last edit:  30/03/2019
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1. Cost and competition model subsidiary level results: "3_Cost_and_competition/Output/Subsidiary_results.rds"
 #####                     2. Equity data: "4_Asset_impacts/Input/Equity_reconciled_2016USD_data.rds"
@@ -369,6 +369,8 @@ fi_results6 <- fi_results5 %>%
   mutate_at(vars(contains("credit_rating_change_")),
             funs(ifelse(is.na(.), 100, .)))
 
+save_dated(fi_results6, "FI_level_credit_rating_results", folder = "Output", csv = FALSE)
+
 # Summarise over chosen variable(s) - taking 10th, 50th and 90th percentiles
 summarise_quantiles <- function(summarise_var, summarise_start_yr) {
   
@@ -430,8 +432,74 @@ summarise_year <- function(summarise_year) {
 fi_results_2030 <- summarise_year(2030)
 fi_results_2050 <- summarise_year(2050)
 
-save_dated(fi_results_2030, "FI_2030_credit_rating_results", folder = "Output", csv = TRUE)
-save_dated(fi_results_2050, "FI_2050_credit_rating_results", folder = "Output", csv = TRUE)
+### Add baseline credit rating data to the dataset
+credit_ratings_baseline_percentile <- function(perc) {
+  
+  moody_rating_name <- rlang::sym(paste0("moody_rating_p", perc * 100))
+  
+  temp <- fi_results6 %>%
+    select(scenario:moody_rating) %>%
+    left_join(moody_rating_rankings, by = c("moody_rating")) %>%
+    select(-sp_rating) %>%
+    # Median MSCI ACWI rating
+    mutate(moody_ranking_msci = quantile(moody_ranking, probs = perc, na.rm = TRUE)) %>%
+    # Median rating within each sector - removing NAs for the case where Moody's rating is unavailable ('NORATING')
+    group_by(fi_results_market) %>%
+    mutate(moody_ranking = quantile(moody_ranking, probs = perc, na.rm = TRUE)) %>%
+    ungroup() %>%
+    select(fi_results_market, moody_ranking, moody_ranking_msci) %>%
+    gather(key = "type", value = "moody_ranking", -fi_results_market) %>% 
+    mutate(fi_results_market = case_when(type == "moody_ranking_msci" ~ "MSCI ACWI",
+                                         TRUE ~ fi_results_market)) %>%
+    select(-type) %>%
+    unique() %>%
+    left_join(moody_rating_rankings, by = c("moody_ranking")) %>%
+    select(-moody_ranking) %>%
+    rename(!!moody_rating_name := moody_rating)
+
+}
+
+credit_rating_baseline_p10 <- credit_ratings_baseline_percentile(perc = 0.1)
+credit_rating_baseline_p50 <- credit_ratings_baseline_percentile(perc = 0.5)
+credit_rating_baseline_p90 <- credit_ratings_baseline_percentile(perc = 0.9)
+
+fi_results_2030_2 <- fi_results_2030 %>%
+  left_join(credit_rating_baseline_p10, by = "fi_results_market") %>%
+  left_join(credit_rating_baseline_p50, by = "fi_results_market") %>%
+  left_join(credit_rating_baseline_p90, by = "fi_results_market")
+
+fi_results_2050_2 <- fi_results_2050 %>%
+  left_join(credit_rating_baseline_p10, by = "fi_results_market") %>%
+  left_join(credit_rating_baseline_p50, by = "fi_results_market") %>%
+  left_join(credit_rating_baseline_p90, by = "fi_results_market")
+
+save_dated(fi_results_2030_2, "FI_2030_credit_rating_results", folder = "Output", csv = TRUE)
+save_dated(fi_results_2050_2, "FI_2050_credit_rating_results", folder = "Output", csv = TRUE)
+
+# Credit rating histogram for each sector (used for report statistics)
+credit_rating_hist <- function(sector) {
+  
+  temp <- fi_results6 %>%
+    select(scenario:moody_rating) %>%
+    left_join(moody_rating_rankings, by = c("moody_rating")) %>%
+    select(-sp_rating) %>%
+    filter(fi_results_market == sector) %>%
+    mutate(moody_group = gsub("[0-9]+", "", moody_rating)) %>%
+    mutate(moody_rating = factor(moody_rating, levels = unique(moody_rating[order(moody_ranking)]), ordered = TRUE)) %>%
+    mutate(moody_group = factor(moody_group, levels = c("Aaa", "Aa", "A", "Baa", "Ba", "NORATING"), ordered = TRUE))
+  
+  #windows()
+  ggplot(temp) +
+    geom_bar(aes(x = moody_group, y = (..count..) / sum(..count..))) + 
+    theme_vivid() +
+    scale_x_discrete(expand = c(0, 0)) +
+    scale_y_continuous(name = "Frequency", expand = c(0, 0), labels = scales::percent_format(1)) +
+    ggtitle(label = sector) +
+    theme(plot.title = element_text(family = "Nordique Pro Semibold"))
+
+}
+
+map(unique(fi_results6$fi_results_market), credit_rating_hist)
 
 ### Q10 - Median - Q90 MSCI ACWI-level impacts area chart
 

@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  24/02/2019
+##### Date of last edit:  25/03/2019
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1. Results from fixed income and equity analysis
 ##### Notes:              This script sets out functions for plotting asset-level impacts
@@ -81,12 +81,12 @@ equity_by_markets <- function(plot_scen = NULL, plot_markets = c("")) {
     geom_jitter(aes(x = temp4$index, y = temp4$parent_market), height = 0.15, size = 1, alpha = 0.2,
                 shape = 16, colour = rgb(0, 191, 214, max = 255)) + 
     geom_errorbarh(aes(xmin = temp5$index_p10, xmax = temp5$index_p90, y = temp5$parent_market), colour = "black", height = 0.2) +
-    geom_text_repel(aes(x = temp5$index, y = temp5$parent_market, label = scales::percent(round(temp5$index, digits = 2))),
-                    nudge_x = 0.1, nudge_y = 0.4, segment.color	= "black") +
+    geom_text_repel(aes(x = temp5$index, y = temp5$parent_market, label = scales::percent_format(1)(round(temp5$index, digits = 2))),
+                    nudge_x = 0.1, nudge_y = 0.4, segment.color	= "black", family = "Nordique Pro Semibold") +
     geom_point(aes(x = temp5$index, y = temp5$parent_market), size = 3, shape = 23,
                fill = rgb(0, 143, 159, max = 255), colour = "black") +
-    scale_x_continuous(name = paste0("Change in valuation under ", gsub("_", " ", plot_scen), " scenario"), breaks = seq(-1, 1, 0.5),
-                       limits = c(-1, 1.2), labels = scales::percent, expand = c(0, 0)) +
+    scale_x_continuous(name = paste0("Change in valuation under ", gsub("_", " ", plot_scen), " scenario"), breaks = seq(-0.6, 0.6, 0.3),
+                       limits = c(-0.6, 0.7), labels = scales::percent, expand = c(0, 0)) +
     scale_y_discrete(name = "Equity parent market") +
     theme_vivid(vivid_size = 1.4) +
     theme(panel.grid.major.x = element_line(linetype = "dashed"))
@@ -142,17 +142,18 @@ market_by_scenario <- function(scen_group_1, scen_group_2, plot_markets) {
     # 2DS Balanced Transformation scenario points
     geom_point(aes(x = temp4$index, y = temp4$parent_market), size = 4, shape = 23,
                fill = rgb(0, 143, 159, max = 255), colour = "black") +
-    scale_x_continuous(name = paste0("Change in valuation under ", gsub("_", " ", "all"), " scenarios"), breaks = seq(-0.5, 0.5, 0.25),
-                       limits = c(-0.5, 0.6), labels = scales::percent, expand = c(0, 0)) +
+    scale_x_continuous(name = paste0("Change in valuation across ", gsub("_", " ", "all"), " scenarios"), breaks = seq(-0.6, 0.6, 0.3),
+                       limits = c(-0.6, 0.7), labels = scales::percent, expand = c(0, 0)) +
     scale_y_discrete(name = "Equity parent market") +
     theme_vivid(vivid_size = 1.4) +
     theme(panel.grid.major.x = element_line(linetype = "dashed"))
   
   ggsave(paste0("4_Asset_impacts/Output/Plots/Equity_impacts_across_scenarios", ".png"), width = 16, height = 9, units = c("in"))
+  #ggsave(paste0("4_Asset_impacts/Output/Plots/Equity_impacts_across_scenarios_labelled", ".png"), width = 16, height = 9, units = c("in"))
   
 }
 
-market_by_scenario(scen_group_1 = c("Below 2DS", "Lack_Of_Coordination", "Late_Action"),
+market_by_scenario(scen_group_1 = c("Below_2DS", "Lack_Of_Coordination", "Late_Action"),
                    scen_group_2 = c("Efficiency_Boost", "EVs_Unplugged", "Renewable_Revolution", "Room_for_CCS"),
                    plot_markets = c("Coal", "Exploration and production", "Concrete and cement",
                                     "Iron & Steel", "Automobiles", "Power generation",
