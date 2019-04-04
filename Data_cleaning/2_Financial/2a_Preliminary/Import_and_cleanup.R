@@ -65,7 +65,10 @@ equity_data2 <- equity_data %>%
          price_to_book_ratio = `Book value of equity or price-to-book ratio`,
          total_liabilities = `Total liabilities`,
          total_assets = `Total Assets`,
-         retained_earnings = `Retained earnings`)
+         retained_earnings = `Retained earnings`) %>%
+  # Net income profit margin variables
+  rename_at(vars(starts_with("NET INCOME - BASIC")),
+            funs(paste0("net_income_", gsub("\\D+", "", .))))
 
 save_dated(equity_data2, "Equity_renamed_data", folder = "Interim", csv = FALSE)
 
@@ -141,15 +144,20 @@ equity_data5 <- equity_data4 %>%
             funs(. * us_price_level["2016"] / us_price_level["2017"])) %>%
   mutate_at(vars(revenue_2017, contains("region_revenue_")), funs(. * us_price_level["2016"] / us_price_level["2017"])) %>%
   mutate_at(vars(product_revenue_1_2017:product_revenue_10_2017), funs(. * us_price_level["2016"] / us_price_level["2017"])) %>%
-  # in year revenues
+  # in year revenues and net income variables
   mutate(revenue_2015 = revenue_2015 * us_price_level["2016"] / us_price_level["2015"],
          revenue_2014 = revenue_2014 * us_price_level["2016"] / us_price_level["2014"],
-         revenue_2013 = revenue_2013 * us_price_level["2016"] / us_price_level["2013"])
+         revenue_2013 = revenue_2013 * us_price_level["2016"] / us_price_level["2013"],
+         net_income_2017 = net_income_2017 * us_price_level["2016"] / us_price_level["2017"],
+         net_income_2015 = net_income_2015 * us_price_level["2016"] / us_price_level["2015"],
+         net_income_2014 = net_income_2014 * us_price_level["2016"] / us_price_level["2014"],
+         net_income_2013 = net_income_2013 * us_price_level["2016"] / us_price_level["2013"])
 
 # Adjust all financial values to be in mn US$ (currently in thousands)
 # NB for some reason retained earnings is already in millions - other credit data is not
 equity_data6 <- equity_data5 %>%
-  mutate_at(vars(revenue, net_income, starts_with("region_revenue_"), starts_with("revenue_201"), starts_with("product_revenue_")),
+  mutate_at(vars(revenue, net_income, starts_with("region_revenue_"), starts_with("revenue_201"),
+                 starts_with("product_revenue_"), starts_with("net_income_201")),
             funs(case_when(!is.na(.) ~ . / 10^3,
                            TRUE ~ .))) %>%
    mutate_at(vars(current_liabilities, current_assets, ebit, total_liabilities, total_assets),

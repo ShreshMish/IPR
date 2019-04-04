@@ -58,7 +58,7 @@ equity_data2 <- equity_data %>%
 # Replace company-level fundamental variables with averages across equity IDs
 equity_data3 <- equity_data2 %>%
   group_by(company_id) %>%
-  mutate_at(vars(revenue, net_income, corporation_tax_rate, contains("revenue_201"),
+  mutate_at(vars(revenue, net_income, corporation_tax_rate, contains("revenue_201"), contains("net_income_201"),
                  current_liabilities, current_assets, ebit, price_to_book_ratio,
                  total_liabilities, total_assets, retained_earnings),
             funs(mean(., na.rm = TRUE)))
@@ -120,7 +120,7 @@ company_data2 <- company_data %>%
   select(company_id, company, industry_level_2:industry_level_5, company_market_cap,
          revenue, net_income, corporation_tax_rate, starts_with("region_revenue_"),
          starts_with("region_name_"), starts_with("revenue_201"), starts_with("product_name_"),
-         starts_with("product_revenue_"))
+         starts_with("product_revenue_"), starts_with("net_income_201"))
 
 save_dated(company_data2, "Companies_2016USD_data", folder = "Output", csv = TRUE)
 
