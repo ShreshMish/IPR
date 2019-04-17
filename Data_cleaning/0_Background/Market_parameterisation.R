@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  17/02/2019
+##### Date of last edit:  08/04/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script parameterises the markets used within the Net-Zero Toolkit
 #####                     Source files are based on judgements of product differentiation and individual elasticity parameter
@@ -22,7 +22,7 @@ source("utils.R")
 market_list_data <- readRDS(input_source("Final_markets_list.rds"))
 
 # Read in market parameterisation results
-market_parameter_data <- read_excel(input_source("Market parameterisation_final.xlsx"),
+market_parameter_data <- read_excel(input_source("Market_parameterisation_final.xlsx"),
                                  sheet = "W1. Market parameterisation fin", range = "$G$9:$L$165")
 
 # Read in MAC curve data

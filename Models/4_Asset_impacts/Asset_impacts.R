@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  03/04/2019
+##### Date of last edit:  08/04/2019
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1. Cost and competition model subsidiary level results: "3_Cost_and_competition/Output/Subsidiary_results.rds"
 #####                     2. Equity data: "4_Asset_impacts/Input/Equity_reconciled_2016USD_data.rds"
@@ -256,14 +256,14 @@ moody_results <- credit_rating_altman(moody_rating, moody_rating_rankings, moody
 sp_regression_results <- lm(sp_ranking ~ altman_z_2017, data = subset(sp_results, excluded != "Y"))
 moody_regression_results <- lm(moody_ranking ~ altman_z_2017, data = subset(moody_results, excluded != "Y"))
   
-ggplot(sp_results) +
+plot <- ggplot(sp_results) +
   geom_point(aes(x = altman_z_2017, y = sp_ranking, colour = excluded)) +
   geom_line(aes(x = altman_z_2017, y = sp_regression_results$coefficients[1] + altman_z_2017 * sp_regression_results$coefficients[2])) +
   theme_vivid() +
   scale_colour_manual(values = c("blue", "red"))
 ggsave(paste0("4_Asset_impacts/Interim/Plots/SP_rating_regression.png"), width = 16, height = 9, units = "in")
 
-ggplot(moody_results) +
+plot <- ggplot(moody_results) +
   geom_point(aes(x = altman_z_2017, y = moody_ranking, colour = excluded)) +
   geom_line(aes(x = altman_z_2017, y = moody_regression_results$coefficients[1] + altman_z_2017 * moody_regression_results$coefficients[2])) +
   theme_vivid() +
