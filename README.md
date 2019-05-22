@@ -30,48 +30,89 @@ Data cleaning and modelling is performed in R. Make is used to track version con
 	3. Demand destruction - Oil, gas, coal and ICE vehicle manufacturing industry modelling of demand-side impacts (ICE vehicles and downstream oil & gas sectors are market- rather than company-level)
 	4. Cleantech markets - Renewables (solar, wind, hydro), EVs, Biofuel industry modelling of demand-side impacts (company-level)
 	5. Cost and competition - Modelling of supply-side cashflow impacts of implicit carbon pricing in all markets (company-level)
-	6. Asset impacts - Mapping of cashflow modelling results to financial assets (company-level)
+	6. Asset impacts - Mapping of cashflow modelling results to financial assets (company-level), production of summary statistics and graphics
 
 #### Folder tree
 
-Note that the following folder tree is for the Net-Zero Toolkit project code only - it does not provide an overview of other files in the project folder directory, which are on Sharepoint but not on Gitlab.
+Note that the following folder tree is for the Net-Zero Toolkit project code only - it does not provide an overview of other files in the project folder directory, which may be on Sharepoint but not on Gitlab.
 
 ```
 Net-Zero Toolkit model overview
-    ├──	Makefile                                            <- Makefile with commands (TBC)
     ├──	README.md                                           <- Top-level README whic provides a summary of the tool and software requirements
     ├──	Model_data_update.Rproj                             <- Model data update project file
     ├──	Model_data_update.R                                 <- Script for updating 'Models' folder with results from latest 'Data_cleaning' code
-    ├──	Issues_log.xlsx                                     <- Summary of outstanding NZT model and data cleaning issues
     ├──	Model_data_update.R                                 <- Script for updating 'Models' folder with results from latest 'Data_cleaning' code
+    ├── utils.R                                             <- Utilities called by Model_data_update.R scripts (equivalent to other utils.R files)
     ├──	Data_cleaning
-    │   └── TBC                                             <- (including unit tests for data cleaning)
+    |   Makefile                                            <- Data cleaning Makefile
+    |   utils.R                                             <- Utilities called by Data_cleaning scripts (equivalent to other utils.R files)
+    |   ├── 0_Background                                    <- MAC curves and market parameter (elasticities, prod differentiation etc.) data clean up
+    |       ├── MAC_curves.R                                <- MAC curve data cleaning
+    |       ├── MAC_curve_charts.R                          <- MAC curve chart generation
+    |       └── Market_parameterisation.R                   <- Market parameters data cleaning
+    |
+    |   ├── 1_Scenarios                                     <- Scenario data clean up (only place where scenarios enter in the Data_cleaning folder)
+    |       ├── Biofuel_production.R                        <- Biofuel global production data (for Cleantech markets)
+    |       ├── Carbon_prices.R                             <- Carbon prices data (for Cost & competition)
+    |       ├── Fossil_fuel_production.R                    <- Fossil fuel global production data (for Demand destruction)
+    |       ├── Renewable_deployment.R                      <- Renewable deployment data (for Cleantech markets)
+    |       ├── Vehicle_deployment.R                        <- Vehicle deployment data (for Cleantech markets and Demand destruction)
+    |
+    |   ├── 2_Financial                                     <- Financial data clean up
+    |       ├── 2a_Preliminary                              <- Preliminary data cleaning before more detailed product / region / profit margin analysis
+    |           ├── Import_and_cleanup.R                    <- Read in spreadsheets and change variable names
+    |           └── Companies_panel.R                       <- Set up unique companies panel, and equity / corporate bond datasets for later Asset impacts analysis
+    |       ├── 2b_Geographic_exposure                      <- Geographic exposure analysis
+    |           ├── Geog_data_cleaning.R                    <- Clean up 'as reported' geographic segment data
+    |           ├── Geog_region_ISO_data_matching.R         <- Find list of unique regions and allocate ISO codes / regions
+    |           └── Geog_exposure_modelling.R               <- Calculate consolidated geographic segments based on NZT regions
+    |       ├── 2c_Product_exposure                         <- Clean up 'as reported' product segment data
+    |           └── Prod_exposure.R                         <- Calculate consolidated product segments based on NZT markets (note spreadsheet analysis by Ethan and Aaron)
+    |       └── 2d_Net_income_margins                       <- Clean up net income profit margins data
+    |           └── Net_income_margins.R
+    |
+    |   ├── 3_ESG                                           <- ESG data clean up
+    |       ├── 3a_CO2_emissions                            <- CO2 emissions data clean up
+    |           └── CO2_emissions.R
+    |       ├── 3b_Oil_and_gas                              <- Oil and gas data clean up
+    |           └── Oil_and_gas.R
+    |       ├── 3c_Coal                                     <- Coal data clean up
+    |           └── Coal.R
+    |       └── 3d_Cleantech                                <- Cleantech markets data clean up (IP and revenue)
+    |           ├── Cleantech_patents.R                     <- Cleantech patents data clean up (Orbis IP)
+    |           └── Cleantech_revenues.R                    <- Cleantech revenues data clean up (FTSE GR)
+    |
+    |   └── 4_Panel                                         <- Build model datasets using 0 - 3 outputs
+    |       ├── Rev_product_exposure.R                      <- Revise product exposure data based on 3_ESG outputs (fossil fuel and cleantech revenue companies only)
+    |       ├── Emissions_intensity.R                       <- Estimate emissions for subsidiaries based on model market emissions intensity, and for companies without emissions data
+    |       └── Profit_margins_combine_datasets.R           <- Combine datasets and calculate revenue growth factors based on industry profit margins
     |
     ├── Models
     ├──	Models.Rproj                                        <- Models project file
-    |   ├── 1 - Demand destruction                          <- Demand destruction model implementation
+    ├── Makefile                                            <- Models Makefile
+    ├── utils.R                                             <- Utilities called by Models scripts (equivalent to other utils.R files)
+    |   ├── 1_Demand_destruction                            <- Demand destruction model implementation
     |       ├── Upstream_oilandgas.R                        <- Oil & gas upstream (E&P) sector
     |       ├── Upstream_coal.R                             <- Coal upstream sector
     |       ├── Downstream_and_svcs.R                       <- Oil & gas midstream and downstream sector
     |       ├── ICE_vehicles.R                              <- ICE vehicle sector
-    |       └── Diagnostics.R                               <- Debugging
     |
-    |   ├── 2 - Cleantech markets                           <- Cleantech markets model implementation
+    |   ├── 2_Cleantech_markets                             <- Cleantech markets model implementation
     |       ├── Cleantech_markets.R                         <- Cleantech markets
-    |       └── Diagnostics.R                               <- Debugging
     |
-    |   ├── 3 - Cost and competition                        <- Cost & competition model implementation
-    |       ├── Cost_and_competition.R                      <- Cost & competition
-    |       └── Diagnostics.R                               <- Debugging
+    |   ├── 3_Cost_and_competition                          <- Cost & competition model implementation
+    |       ├── Carbon_costs.R                              <- Carbon costs using MACCs and carbon prices
+    |       ├── Combine_datasets.R                          <- Combines Panel with DD and CM model results
+    |       ├── Model.R                                     <- Cost & competition model functions
+    |       └── Run_model.R                                 <- Runs model based on parameter choices
     |
-    |   ├── 4 - Asset impacts                               <- Overlay of company-level impacts to financial assets
-    |       ├── TBC.R                                       <- TBC
-    |       └── Diagnostics.R                               <- Debugging
+    |   ├── 4_Asset_impacts                                 <- Overlay of company-level impacts to financial assets
+    |       ├── Asset_impacts.R                             <- Equity and FI asset-level impact analysis
+    |       └── <Other scripts>.R                           <- Graphics and summary statistics for publication
     |
-    |   └── 5 - Unit tests                                  <- Testing of model implementation
-    |       ├── TBC.R                                       <- TBC
-    |       └── Diagnostics.R                               <- Debugging
-
+    |   └── 5_Unit_tests                                    <- Testing of model implementation
+    |       └── TBC.R                                       <- TBC
+    
 All model and data cleaning folders have the following subfolder structure
     ├── Input                                               <- Raw input data (csv files in Data cleaning, rds files written by Model_data_update.R in Models)
     ├── Interim                                             <- Interim data outputs (useful for debugging)
