@@ -121,7 +121,7 @@ company_liquid_data2 <- company_liquid_data %>%
 
 # Global liquid production
 global_liquid_data2 <- global_liquid_data %>%
-  separate(X__1, into = c("item", "scenario"), sep = " ", extra = "merge") %>%
+  separate(`...1`, into = c("item", "scenario"), sep = " ", extra = "merge") %>%
   mutate(scenario = case_when(!grepl(" Case", scenario) ~ "Central",
                               TRUE ~ substring(scenario, 1, as.numeric(gregexpr("Case", scenario)) - 2))) %>%
   mutate(rystad_name = "Global",
