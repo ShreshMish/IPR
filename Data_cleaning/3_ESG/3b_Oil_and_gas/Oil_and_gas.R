@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  03/02/2019
+##### Date of last edit:  06/06/2019
 ##### Code author:        Justine Schafer
 ##### Edited by:          Shyamal Patel (new file / folder structure x2)
 ##### Description:        This script reads in Rystad oil and gas production and economics data and cleans it in
@@ -91,7 +91,7 @@ company_gas_data2 <- company_gas_data %>%
 
 # Global gas production
 global_gas_data2 <- global_gas_data %>%
-  separate(X__1, into = c("item", "scenario"), sep = " ", extra = "merge") %>%
+  separate(`...1`, into = c("item", "scenario"), sep = " ", extra = "merge") %>%
   mutate(scenario = case_when(!grepl(" Case", scenario) ~ "Central",
                               TRUE ~ substring(scenario, 1, as.numeric(gregexpr("Case", scenario)) - 2))) %>%
   mutate(rystad_name = "Global",

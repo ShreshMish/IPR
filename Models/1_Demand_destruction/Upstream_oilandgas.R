@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  19/02/2019
+##### Date of last edit:  06/06/2019
 ##### Code author:        Justine Schafer
 ##### Edited by:          Shyamal Patel
 ##### Description:        This script imports cleaned Rystad data and scenario analysis data for demand destruction analysis
@@ -219,7 +219,7 @@ company_npv_results2 <- company_npv_results %>%
             funs("npv" = . / (1 + discount_rate) ^ (year - 2018))) %>%
   group_by(rystad_name, scenario, product) %>%
   mutate_at(vars(ends_with("npv")),
-            funs("sum", sum(weight * ., na.rm = TRUE))) %>%
+            funs("sum" = sum(weight * ., na.rm = TRUE))) %>%
   summarise_at(vars(ends_with("_npv_sum")),
                funs(sum(., na.rm = TRUE))) %>%
   group_by(rystad_name, product) %>%

@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  08/04/2019
+##### Date of last edit:  06/06/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script parameterises the markets used within the Net-Zero Toolkit
 #####                     Source files are based on judgements of product differentiation and individual elasticity parameter
@@ -45,7 +45,7 @@ market_parameter_data2 <- market_parameter_data %>%
   rename(market = Market,
          elasticity = Elasticity,
          # Third product differentiation column is final parameters from model (first two are RR and TN responses)
-         product_differentiation = `Product differentiation__2`) %>%
+         product_differentiation = `Product differentiation...6`) %>%
   select(market, elasticity, product_differentiation)
 
 #--------------------------------------------------------------------------------------------------

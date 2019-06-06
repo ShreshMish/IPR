@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  23/02/2019
+##### Date of last edit:  06/06/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in coal scenario and exposure data and models stranding impacts
 ##### Dependencies:       1.  Coal company-level cleaned data
@@ -184,7 +184,7 @@ mine_profit_npv_results <- mine_profit_results %>%
             funs("npv" = . / (1 + discount_rate) ^ (year - 2018))) %>%
   group_by(mine_ID, region, scenario) %>%
   summarise_at(vars(profit_npv, profit_impact_npv, margin_impact_npv, stranding_impact_npv),
-               funs("sum", sum(weight * ., na.rm = TRUE))) %>%
+               funs("sum" = sum(weight * ., na.rm = TRUE))) %>%
   ungroup() %>%
   group_by(mine_ID, region) %>%
   mutate(profit_impact_pct = profit_impact_npv_sum / profit_npv_sum[[which(scenario == "Paris_NDCs")]],

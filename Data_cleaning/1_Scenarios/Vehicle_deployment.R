@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  19/02/2019
+##### Date of last edit:  06/06/2019
 ##### Code author:        Shyamal Patel
 ##### Description:        This script reads in TIAM EV deployment data from Excel and calculates EV and ICE-fired vehicle deployment 
 #####                     for use in later calculations and modelling
@@ -58,7 +58,7 @@ scenario_names2 <- scenario_names %>%
   select(old_scenario_name, scenario, public_scenario)
 
 evo18_ev_hist_stock2 <- evo18_ev_hist_stock %>%
-  rename(region = X__1) %>%
+  rename(region = `...1`) %>%
   filter(region == "Total") %>%
   select(-region) %>%
   gather(key = year, value = stock, `2005`:`2017`) %>%
