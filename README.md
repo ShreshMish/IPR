@@ -13,7 +13,7 @@ Data cleaning and modelling is performed in R. Make is used to track version con
 | Category   | Description        | Comments                                                                                               |
 |------------|--------------------|--------------------------------------------------------------------------------------------------------|
 | Programs   | R (>3.5.0) <br> RStudio (>1.1.383)    |   <br> Optional																	   |
-| R packages | `tidyverse` <br> `multidplyr` <br> `doParallel` <br> `stringi` <br> `stringr` <br> `ggrepel` <br> `here` <br> `themeVE` <br> <br> `dotenv` <br> `fs`| `ggplot` dev. version may be required <br> Used for parallel processing <br> Used for parallel processing <br> <br> <br> <br> <br> Vivid theme package (old colours) <br> <https://gitlab.com/vivideconomics/business-development/vivid-r-theme> <br> Used to configure file paths <br> Used to configure file paths                                                                   |
+| R packages | `tidyverse` <br> `stringi` <br> `stringr` <br> `ggrepel` <br> `here` <br> `themeVE` <br> <br> | `ggplot` dev. version may be required <br> Used for parallel processing <br> Used for parallel processing <br> <br> <br> <br> <br> Vivid theme package (old colours) <br> <https://gitlab.com/vivideconomics/business-development/vivid-r-theme> <br> Used to configure file paths <br> Used to configure file paths                                                                   |
 
 #### Code overview
 
