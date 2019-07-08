@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  22/02/2019
+##### Date of last edit:  08/07/2019
 ##### Model author:       Robert Ritz
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       N/A
@@ -42,6 +42,12 @@ run_rr_model <- function(rr_data, rr_carbon_cost_pwh_data = NULL, rr_parameter_d
   if(rr_parameter_data$product_differentiation != "B.0") {
     rr_panel_model_run %<>%
       mutate(product_differentiation = rr_parameter_data$product_differentiation)
+  }
+  
+  # User input on elasticity
+  if(rr_parameter_data$elasticity != "B.0") {
+    rr_panel_model_run %<>%
+      mutate(elasticity = rr_parameter_data$elasticity)
   }
   
   for(i in model_years) {
@@ -173,7 +179,7 @@ model_years <- c(2018:2050)
 run_model <- function(data, parameter_data, value_chain_element, variables) {
   
   ### SECTION 2a - Data cleaning which is parameter choice contingent
-  print("Cleaning data")
+  print(paste0("Cleaning data - ", format(Sys.time(), "%H:%M:%S")))
   
   # Adjust market cap for asset stranding (if selected by user)
   panel_model_data <- data %>%
@@ -290,7 +296,7 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
   panel_run <- panel_model_data7
   
   ### SECTION 2b - Run recursive Robert Ritz model for power sector
-  print("Power sector model")
+  print(paste0("Power sector model - ", format(Sys.time(), "%H:%M:%S")))
   
   # Separate out the power sector
   pwh_panel_run <- panel_run %>%
@@ -319,7 +325,7 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
     select(scenario, region, contains("_pwh"))
   
   ### SECTION 3d - Run recursive Robert Ritz model for all other sectors
-  print("All other sectors model")
+  print(paste0("All other sectors model - ", format(Sys.time(), "%H:%M:%S")))
   all_other_panel_model_run <- panel_run %>%
     filter(market != "Power generation")
   
@@ -331,7 +337,7 @@ run_model <- function(data, parameter_data, value_chain_element, variables) {
     bind_rows(all_other_results)
   
   ### SECTION 3f - Calculate terminal value of profits, post tax profits and net present values
-  print("NPV results and aggregation")
+  print(paste0("NPV results and aggregation - ", format(Sys.time(), "%H:%M:%S")))
    
   # Terminal values, post-tax profits and profit summary
   run_results2 <- run_results %>%
