@@ -1,5 +1,5 @@
 ##### Project code:       Net-Zero Toolkit for modelling the financial impacts of low-carbon transition scenarios
-##### Date of last edit:  03/04/2019
+##### Date of last edit:  08/07/2019
 ##### Code author:        Shyamal Patel
 ##### Dependencies:       1 - 3: equity results at the asset-level, sector-level and for the MSCI ACWI as a whole
 #####                     4 - 6: FI results at the asset-level, sector-level and for the MSCI ACWI as a whole
@@ -95,8 +95,8 @@ equity_by_markets <- function(plot_scen = NULL, plot_markets = c("")) {
                     nudge_x = 0.1, nudge_y = 0.4, segment.color	= "black", family = "Nordique Pro Semibold") +
     geom_point(aes(x = temp5$index, y = temp5$parent_market), size = 3, shape = 23,
                fill = rgb(0, 143, 159, max = 255), colour = "black") +
-    scale_x_continuous(name = paste0("Change in valuation under ", gsub("_", " ", plot_scen), " scenario"), breaks = seq(-0.6, 0.6, 0.3),
-                       limits = c(-0.6, 0.7), labels = scales::percent, expand = c(0, 0)) +
+    scale_x_continuous(name = paste0("Change in valuation under ", gsub("_", " ", plot_scen), " scenario"), breaks = seq(-1, 1, 0.5),
+                       limits = c(-1, 1), labels = scales::percent, expand = c(0, 0)) +
     scale_y_discrete(name = "Equity parent market") +
     theme_vivid(vivid_size = 1.4) +
     theme(panel.grid.major.x = element_line(linetype = "dashed"))
